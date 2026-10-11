@@ -698,17 +698,28 @@ fn process_character_inner(
     let img_data = crate::png::extract_card_json(&chunks)?;
     let parsed: Value =
         serde_json::from_str(&img_data).map_err(|e| format!("invalid card JSON: {e}"))?;
+    let value = process_character_from_card(item, parsed, deps, file_path)?;
+    Ok(with_json_data(value, &img_data))
+}
 
+/// Assemble the response object from an already-parsed card (used by both
+/// the full PNG path and the disk-cache path, which supplies the cached card
+/// JSON directly and skips chunk scanning).
+pub fn process_character_from_card(
+    item: &str,
+    parsed: Value,
+    deps: &CardDeps,
+    file_path: &std::path::Path,
+) -> Result<Value, String> {
     let mut json_object = get_chara_card_v2(parsed);
     // jsonObject.avatar = item
     if let Some(o) = json_object.as_object_mut() {
         o.insert("avatar".into(), Value::from(item));
     }
 
-    // character.json_data = imgData (raw string preserved verbatim)
-    if let Some(o) = json_object.as_object_mut() {
-        o.insert("json_data".into(), Value::from(img_data));
-    }
+    // character.json_data is applied by the caller via with_json_data():
+    // the full PNG path holds img_data; the disk-cache path holds the cached
+    // raw string. Both must be byte-identical to the original card JSON.
 
     let stat = std::fs::metadata(file_path).map_err(|e| e.to_string())?;
     let ctime_ms = ctime_millis(&stat);
@@ -735,6 +746,15 @@ fn process_character_inner(
     o.insert("chat_size".into(), serde_json::json!(chat_size));
     o.insert("data_size".into(), serde_json::json!(data_size));
     Ok(out)
+}
+
+/// Restore the verbatim `json_data` raw string after assembly (the disk
+/// cache stores exactly this string, so the cached path preserves it too).
+pub fn with_json_data(mut value: Value, raw: &str) -> Value {
+    if let Some(o) = value.as_object_mut() {
+        o.insert("json_data".into(), Value::from(raw.to_string()));
+    }
+    value
 }
 
 /// Mirror of `calculateChatSize`.

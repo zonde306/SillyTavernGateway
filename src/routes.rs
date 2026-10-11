@@ -11,6 +11,7 @@ use axum::routing::{get, post};
 use serde_json::json;
 
 use crate::auth::{AuthError, Authenticator};
+use crate::disk_cache;
 use crate::{card, forward, png, AppState};
 
 /// Methods that require CSRF validation (csrf-sync: everything except
@@ -124,6 +125,8 @@ async fn characters_all(State(state): State<Arc<AppState>>, req: Request<Body>) 
         .max(1);
     let (sender, body_stream) =
         tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(16);
+    let data_root = state.cfg.data_root.clone();
+    let handle = auth.handle.clone();
     tokio::spawn(async move {
         let _ = sender.send(Ok(bytes::Bytes::from_static(b"[\n"))).await;
         let mut first = true;
@@ -138,7 +141,17 @@ async fn characters_all(State(state): State<Arc<AppState>>, req: Request<Body>) 
             .collect();
 
         for batch in plan_batches(&entries, batch_bytes) {
-            process_batch(&batch, &deps, batch_bytes, shallow, &mut first, &sender).await;
+            process_batch(
+                &batch,
+                &deps,
+                batch_bytes,
+                shallow,
+                &data_root,
+                &handle,
+                &mut first,
+                &sender,
+            )
+            .await;
         }
         let _ = sender.send(Ok(bytes::Bytes::from_static(b"\n]"))).await;
     });
@@ -198,8 +211,93 @@ fn zeroed_stub() -> serde_json::Value {
     json!({ "date_added": 0, "date_last_chat": 0, "chat_size": 0 })
 }
 
+/// Cache-aware single-card processing, mirroring the upstream
+/// readCharacterData → processCharacter pipeline:
+///
+/// 1. key = `<charactersDir>/<item>-<mtimeMs>` (identical to Node's
+///    getCacheKey, so both processes share entries)
+/// 2. disk hit → parse cached JSON, skip PNG chunk scanning entirely
+/// 3. miss → full PNG parse (card JSON extracted), write back to disk
+///
+/// Note: unlike Node's memoryCache, cached value is the raw card JSON
+/// string; the avatar/json_data/stats fields are re-applied per request
+/// (they depend on the item name and current chat state).
+fn process_character_cached(
+    item: &str,
+    deps: &card::CardDeps,
+    cache: &disk_cache::DiskCache,
+    data_root: &std::path::Path,
+    handle: &str,
+) -> serde_json::Value {
+    let file_path = deps.characters_dir.join(item);
+
+    // Derive the cache key from the file's current mtime.
+    let key = match std::fs::metadata(&file_path) {
+        Ok(meta) => {
+            let (secs, nanos) = disk_cache::mtime_secs_nanos(&meta);
+            disk_cache::cache_key(
+                data_root,
+                handle,
+                item,
+                &disk_cache::format_mtime_ms(secs, nanos),
+            )
+        }
+        Err(_) => {
+            // File gone: fall through to the normal error path
+            return card::process_character(item, deps);
+        }
+    };
+
+    // 1) disk hit: raw card JSON from cache → rebuild the response object
+    if let Some(cached_json) = cache.get(&key) {
+        match rebuild_response_from_cached(item, &cached_json, deps, &file_path) {
+            Ok(v) => return v,
+            Err(e) => {
+                tracing::warn!(file = %item, error = %e, "cached entry unusable; reparsing");
+            }
+        }
+    }
+
+    // 2) miss: full PNG parse
+    let value = card::process_character(item, deps);
+
+    // 3) write back only on success (stubs are never cached, matching Node
+    //    which caches `result` unconditionally — but our stub lacks imgData,
+    //    so caching it would poison the entry)
+    if value.get("name").is_some() {
+        if let Some(raw) = value.get("json_data").and_then(|v| v.as_str()) {
+            if let Err(e) = cache.put(&key, raw) {
+                tracing::warn!(file = %item, error = %e, "disk cache write failed");
+            }
+        }
+    }
+    value
+}
+
+/// Rebuild the `/all` `/get` response object from a cached card JSON string,
+/// applying the per-request fields (avatar/json_data/stats) exactly like
+/// process_character_inner does after parsing.
+fn rebuild_response_from_cached(
+    item: &str,
+    cached_json: &str,
+    deps: &card::CardDeps,
+    file_path: &std::path::Path,
+) -> Result<serde_json::Value, String> {
+    let parsed: serde_json::Value =
+        serde_json::from_str(cached_json).map_err(|e| format!("cached JSON invalid: {e}"))?;
+    let value = card::process_character_from_card(item, parsed, deps, file_path)?;
+    // json_data must be the verbatim original card JSON — the cached string
+    // IS that string (cache stores only successful parses' raw JSON).
+    Ok(card::with_json_data(value, cached_json))
+}
+
 /// Process one planned batch: parse all files concurrently, emit results in
 /// batch order (upstream readdir order preserved).
+///
+/// Cache: before parsing, each file is looked up in the shared node-persist-
+/// compatible DiskCache (key = path-mtimeMs, same as Node); hits skip PNG
+/// parsing entirely. Misses parse, then write the raw card JSON back so Node
+/// can also reuse the entry.
 ///
 /// Failure policy:
 /// - if the whole batch fails (every entry errors), the batch is split in
@@ -210,16 +308,25 @@ async fn process_batch(
     deps: &card::CardDeps,
     batch_bytes: u64,
     shallow: bool,
+    data_root: &std::path::Path,
+    handle: &str,
     first: &mut bool,
     sender: &tokio::sync::mpsc::Sender<Result<bytes::Bytes, std::io::Error>>,
 ) {
+    let cache = disk_cache::DiskCache::new(data_root);
+
     // Run the batch concurrently.
     let tasks: Vec<_> = batch
         .iter()
         .cloned()
         .map(|(name, _size)| {
             let deps2 = deps.clone();
-            tokio::task::spawn_blocking(move || card::process_character(&name, &deps2))
+            let data_root = data_root.to_path_buf();
+            let handle = handle.to_string();
+            let cache2 = cache.clone();
+            tokio::task::spawn_blocking(move || {
+                process_character_cached(&name, &deps2, &cache2, &data_root, &handle)
+            })
         })
         .collect();
 
@@ -258,6 +365,8 @@ async fn process_batch(
                 deps,
                 batch_bytes,
                 shallow,
+                data_root,
+                handle,
                 first,
                 sender,
             ))
@@ -269,6 +378,8 @@ async fn process_batch(
                 deps,
                 batch_bytes,
                 shallow,
+                data_root,
+                handle,
                 first,
                 sender,
             ))
@@ -344,9 +455,15 @@ async fn characters_get(State(state): State<Arc<AppState>>, req: Request<Body>) 
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    let value = tokio::task::spawn_blocking(move || card::process_character(&avatar_url, &deps))
-        .await
-        .unwrap_or_else(|_| json!({ "date_added": 0, "date_last_chat": 0, "chat_size": 0 }));
+    // Cache-aware single-card read (same shared cache as /all and Node)
+    let data_root = state.cfg.data_root.clone();
+    let handle = auth.handle.clone();
+    let value = tokio::task::spawn_blocking(move || {
+        let cache = disk_cache::DiskCache::new(&data_root);
+        process_character_cached(&avatar_url, &deps, &cache, &data_root, &handle)
+    })
+    .await
+    .unwrap_or_else(|_| json!({ "date_added": 0, "date_last_chat": 0, "chat_size": 0 }));
 
     (
         [(axum::http::header::CONTENT_TYPE, "application/json")],
@@ -423,9 +540,11 @@ async fn characters_edit(State(state): State<Arc<AppState>>, req: Request<Body>)
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    let result = tokio::task::spawn_blocking(move || edit_character(&form, &deps, avatar_url))
-        .await
-        .unwrap_or_else(|e| Err(format!("join error: {e}")));
+    let data_root = state.cfg.data_root.clone();
+    let result =
+        tokio::task::spawn_blocking(move || edit_character(&form, &deps, avatar_url, &data_root))
+            .await
+            .unwrap_or_else(|e| Err(format!("join error: {e}")));
 
     match result {
         Ok(()) => StatusCode::OK.into_response(),
@@ -442,6 +561,7 @@ fn edit_character(
     form: &serde_json::Value,
     deps: &card::CardDeps,
     target_file: String,
+    data_root: &std::path::Path,
 ) -> Result<(), String> {
     let avatar_png = format!("{target_file}.png");
     let file_path = deps.characters_dir.join(&avatar_png);
@@ -520,7 +640,145 @@ fn edit_character(
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(char_json.as_bytes());
     let new_chunk = png::encode_text_chunk("chara", &b64);
-    png::write_card_to_png(&file_path, &[new_chunk]).map_err(|e| e.to_string())
+    png::write_card_to_png(&file_path, &[new_chunk]).map_err(|e| e.to_string())?;
+
+    // Cache invalidation: the mtime-keyed entry for this file is now stale.
+    // Node handles this naturally (its getCacheKey embeds mtimeMs); run the
+    // same prune so stale entries (ours or Node's) don't accumulate.
+    let cache = disk_cache::DiskCache::new(data_root);
+    let pruned = cache.prune();
+    if pruned > 0 {
+        tracing::debug!(pruned, "disk cache pruned after edit");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    /// Cache hit must produce a response identical to a fresh PNG parse
+    /// (same fields, same verbatim json_data) — and skip chunk scanning.
+    #[tokio::test]
+    async fn cache_hit_matches_full_parse() {
+        let dir = tempfile::tempdir().unwrap();
+        let chars = dir
+            .path()
+            .join("data")
+            .join("default-user")
+            .join("characters");
+        std::fs::create_dir_all(&chars).unwrap();
+
+        // Valid card PNG
+        let card = serde_json::json!({
+            "spec": "chara_card_v2", "spec_version": "2.0",
+            "name": "Cached", "data": { "name": "Cached", "description": "d" }
+        })
+        .to_string();
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(card.as_bytes());
+        let mut data = b"chara\0".to_vec();
+        data.extend_from_slice(b64.as_bytes());
+        let mut png_bytes = Vec::new();
+        png_bytes.extend_from_slice(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        png_bytes.extend_from_slice(&png::build_chunk(
+            b"IHDR",
+            &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0],
+        ));
+        png_bytes.extend_from_slice(&png::build_chunk(b"tEXt", &data));
+        png_bytes.extend_from_slice(&png::build_chunk(b"IEND", &[]));
+        std::fs::write(chars.join("c.png"), &png_bytes).unwrap();
+
+        let data_root = dir.path().join("data");
+        let deps = card::CardDeps {
+            characters_dir: chars.clone(),
+            chats_dir: dir.path().join("data/default-user/chats"),
+            worlds_dir: dir.path().join("data/default-user/worlds"),
+        };
+        let cache = disk_cache::DiskCache::new(&data_root);
+
+        // First pass: miss → parse → write back
+        let cold = process_character_cached("c.png", &deps, &cache, &data_root, "default-user");
+        assert_eq!(cold["name"], "Cached");
+        assert!(
+            cache.dir().read_dir().unwrap().count() >= 1,
+            "entry written"
+        );
+
+        // Second pass: hit → identical result without PNG parsing.
+        let warm = process_character_cached("c.png", &deps, &cache, &data_root, "default-user");
+        // Exception: `chat` carries a fresh humanizedDateTime() per cold parse
+        // (upstream behavior too — readFromV2 backfills missing chat with
+        // now()). The cache hit replays the parsed card including the chat
+        // default generated at cache-fill time; compare everything else.
+        let normalize = |v: &serde_json::Value| {
+            let mut v = v.clone();
+            if let Some(o) = v.as_object_mut() {
+                o.remove("chat");
+            }
+            v
+        };
+        assert_eq!(normalize(&warm), normalize(&cold));
+        // json_data verbatim round-trip
+        assert_eq!(
+            warm["json_data"].as_str().unwrap(),
+            cold["json_data"].as_str().unwrap()
+        );
+    }
+
+    /// Corrupted cache entry must fall back to a full parse, not fail.
+    #[tokio::test]
+    async fn corrupt_cache_entry_falls_back_to_parse() {
+        let dir = tempfile::tempdir().unwrap();
+        let chars = dir
+            .path()
+            .join("data")
+            .join("default-user")
+            .join("characters");
+        std::fs::create_dir_all(&chars).unwrap();
+
+        let card = serde_json::json!({
+            "spec": "chara_card_v2", "spec_version": "2.0",
+            "name": "Fallback", "data": { "name": "Fallback", "description": "d" }
+        })
+        .to_string();
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(card.as_bytes());
+        let mut data = b"chara\0".to_vec();
+        data.extend_from_slice(b64.as_bytes());
+        let mut png_bytes = Vec::new();
+        png_bytes.extend_from_slice(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        png_bytes.extend_from_slice(&png::build_chunk(
+            b"IHDR",
+            &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0],
+        ));
+        png_bytes.extend_from_slice(&png::build_chunk(b"tEXt", &data));
+        png_bytes.extend_from_slice(&png::build_chunk(b"IEND", &[]));
+        std::fs::write(chars.join("f.png"), &png_bytes).unwrap();
+
+        let data_root = dir.path().join("data");
+        let deps = card::CardDeps {
+            characters_dir: chars.clone(),
+            chats_dir: dir.path().join("data/default-user/chats"),
+            worlds_dir: dir.path().join("data/default-user/worlds"),
+        };
+        let cache = disk_cache::DiskCache::new(&data_root);
+
+        // Plant a corrupt cache entry under the correct hashed name
+        let meta = std::fs::metadata(chars.join("f.png")).unwrap();
+        let (secs, nanos) = disk_cache::mtime_secs_nanos(&meta);
+        let key = disk_cache::cache_key(
+            &data_root,
+            "default-user",
+            "f.png",
+            &disk_cache::format_mtime_ms(secs, nanos),
+        );
+        cache.put(&key, "NOT VALID JSON{{{").unwrap();
+
+        // Must parse the PNG instead and still succeed
+        let value = process_character_cached("f.png", &deps, &cache, &data_root, "default-user");
+        assert_eq!(value["name"], "Fallback");
+    }
 }
 
 #[cfg(test)]
@@ -559,6 +817,7 @@ mod tests {
         );
         let cfg = crate::config::ResolvedConfig::from_text(&cfg_text, dir.path().to_path_buf());
         let state = Arc::new(AppState {
+            disk_cache: crate::disk_cache::DiskCache::new(&cfg.data_root),
             cfg: Arc::new(cfg),
             node: forward::NodeClient::new(),
         });
@@ -702,7 +961,17 @@ mod tests {
 
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(32);
         let mut first = true;
-        process_batch(&batch, &deps, DEFAULT_BATCH_BYTES, false, &mut first, &tx).await;
+        process_batch(
+            &batch,
+            &deps,
+            DEFAULT_BATCH_BYTES,
+            false,
+            &dir.path().to_path_buf(),
+            "default-user",
+            &mut first,
+            &tx,
+        )
+        .await;
         drop(tx);
 
         // All stubs lack "name" → filtered → stream should be exactly [\n + \n]
@@ -741,7 +1010,17 @@ mod tests {
 
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, std::io::Error>>(32);
         let mut first = true;
-        process_batch(&batch, &deps, DEFAULT_BATCH_BYTES, false, &mut first, &tx).await;
+        process_batch(
+            &batch,
+            &deps,
+            DEFAULT_BATCH_BYTES,
+            false,
+            &dir.path().to_path_buf(),
+            "default-user",
+            &mut first,
+            &tx,
+        )
+        .await;
         drop(tx);
 
         let mut collected = Vec::new();
