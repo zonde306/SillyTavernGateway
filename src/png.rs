@@ -157,6 +157,16 @@ pub fn build_chunk(ctype: &[u8; 4], data: &[u8]) -> Vec<u8> {
 ///
 /// Writes via temp file + rename (write-file-atomic semantics).
 pub fn write_card_to_png(src: &std::path::Path, new_chunks: &[Vec<u8>]) -> std::io::Result<()> {
+    write_card_to_png_from_to(src, src, new_chunks)
+}
+
+/// Same surgery but writing to a (possibly different) destination path —
+/// used by /rename to create the renamed PNG without touching the original.
+pub fn write_card_to_png_from_to(
+    src: &std::path::Path,
+    dst: &std::path::Path,
+    new_chunks: &[Vec<u8>],
+) -> std::io::Result<()> {
     let mut file = std::fs::File::open(src)?;
     let mut sig = [0u8; 8];
     file.read_exact(&mut sig)?;
@@ -167,7 +177,7 @@ pub fn write_card_to_png(src: &std::path::Path, new_chunks: &[Vec<u8>]) -> std::
         ));
     }
 
-    let tmp_path = src.with_extension("png.tmp");
+    let tmp_path = dst.with_extension("png.tmp");
     {
         let mut out = std::io::BufWriter::new(std::fs::File::create(&tmp_path)?);
         use std::io::Write;
@@ -215,7 +225,7 @@ pub fn write_card_to_png(src: &std::path::Path, new_chunks: &[Vec<u8>]) -> std::
         }
         out.flush()?;
     }
-    std::fs::rename(&tmp_path, src)?;
+    std::fs::rename(&tmp_path, dst)?;
     Ok(())
 }
 

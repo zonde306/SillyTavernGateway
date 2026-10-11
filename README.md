@@ -123,6 +123,9 @@ phase B).
   failure, single-file stub semantics without retry, toShallow projection
   and lodash-get defaults, cache hit == full parse, corrupt-cache fallback,
   node-persist datum format, ...).
+- 5 B1 tests: sanitize-filename vectors from the REAL Node package, PNG-name
+  dedup, edit-attribute dual-level field writes, rename end-to-end (card
+  rewrite + chats migration + unlink), export-json private-field stripping.
 - 1 shared-cache proof: reads a REAL Node-produced cache entry from
   `data/_cache/characters/` and verifies the Rust hash lands on the same
   file with identical value (skip-vacuous when no cache exists).

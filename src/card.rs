@@ -814,6 +814,74 @@ fn ms_to_iso(ms: f64) -> String {
         .unwrap_or_default()
 }
 
+/// Mirror of the `sanitize-filename` package (replacement = ""):
+/// strips illegal chars /[\/?<>\\:*|"]/g, control chars [\x00-\x1f\x80-\x9f],
+/// whole-dot names /^.+$/, Windows reserved names (case-insensitive),
+/// trailing dots/spaces; truncates to 255 UTF-8-safe bytes.
+pub fn sanitize_filename(input: &str) -> String {
+    let mut out: Vec<u8> = Vec::with_capacity(input.len());
+    for c in input.chars() {
+        let cp = c as u32;
+        let illegal = matches!(c, '/' | '?' | '<' | '>' | '\\' | ':' | '*' | '|' | '"');
+        let control = cp <= 0x1f || (0x80..=0x9f).contains(&cp);
+        if illegal || control {
+            continue; // replacement = "" → removed
+        }
+        let mut buf = [0u8; 4];
+        out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+    }
+    let mut s = String::from_utf8_lossy(&out).to_string();
+
+    // reservedRe: /^.+$/ → name made entirely of dots becomes empty
+    if !s.is_empty() && s.chars().all(|c| c == '.') {
+        s.clear();
+    }
+
+    // windowsReservedRe: /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i
+    {
+        let stem = s.split('.').next().unwrap_or("").to_ascii_lowercase();
+        let is_reserved = matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
+            || (stem.len() == 4
+                && (stem.starts_with("com") || stem.starts_with("lpt"))
+                && stem[3..].chars().all(|c| c.is_ascii_digit()));
+        if !s.is_empty() && is_reserved {
+            s.clear();
+        }
+    }
+
+    // windowsTrailingRe: /[. ]+$/
+    while s.ends_with('.') || s.ends_with(' ') {
+        s.pop();
+    }
+
+    // truncate-utf8-bytes: 255 bytes without splitting a code point
+    if s.len() > 255 {
+        let mut end = 255;
+        while !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        s.truncate(end);
+    }
+    s
+}
+
+/// Mirror of `getPngName`: unique name in the characters dir, appending a
+/// counter digit when a collision exists (startIndex 0: base, then 1, 2...).
+pub fn get_png_name(name: &str, characters_dir: &std::path::Path) -> String {
+    let base = sanitize_filename(name);
+    let exists = |n: &str| characters_dir.join(format!("{n}.png")).exists();
+    if !exists(&base) {
+        return base;
+    }
+    for i in 1..=10000u32 {
+        let candidate = format!("{base}{i}");
+        if !exists(&candidate) {
+            return candidate;
+        }
+    }
+    base
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
