@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write                   # 创建 Release 和上传附件需要写入权限
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 第一步：在矩阵中构建各平台二进制
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false              # 一个平台失败不影响其他平台继续构建
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 安装 Rust 工具链，并添加目标平台支持
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # 缓存 Cargo 依赖，加速后续构建
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      # 在 Linux ARM64 上安装交叉编译工具链（使用 cross 工具）
+      - name: Install cross (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      # 执行构建：Linux ARM64 用 cross，其他平台用原生 cargo
+      - name: Build binary (cross)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build binary (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # 将产物打包为压缩包，并设置 ASSET 环境变量供上传步骤使用
+      - name: Package binary (Unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          staging="myapp-${{ github.ref_name }}-${{ matrix.target }}"
+          mkdir -p "$staging"
+          cp "target/${{ matrix.target }}/release/myapp" "$staging/"
+          cp README.md LICENSE "$staging/" 2>/dev/null || true
+          tar czf "$staging.tar.gz" "$staging"
+          echo "ASSET=$staging.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Package binary (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $staging = "myapp-${{ github.ref_name }}-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $staging -Force
+          Copy-Item "target/${{ matrix.target }}/release/myapp.exe" "$staging/"
+          Copy-Item README.md, LICENSE "$staging/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$staging/*" -DestinationPath "$staging.zip"
+          "ASSET=$staging.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # 上传制品：先暂存到 Actions 制品区，供后续 Release 任务统一读取
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ASSET }}
+
+  # 第二步：下载所有平台的制品，创建 Release 并上传附件
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 下载所有矩阵任务的制品到当前工作目录
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # 列出下载的文件，便于调试
+      - name: List artifacts
+        run: find artifacts -type f | head -50
+
+      # 使用 softprops/action-gh-release 创建 Release 并上传所有附件
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          # 自动从标签生成 Release，标签格式如 v1.0.0
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          # 使用 glob 匹配所有下载的压缩包作为附件
+          files: artifacts/**/*.tar.gz
+          # 同时上传 Windows zip
+          # files 支持多行，也可以写为：
+          # files: |
+          #   artifacts/**/*.tar.gz
+          #   artifacts/**/*.zip
+          fail_on_unmatched_files: true   # 如果某个 glob 没匹配到文件则失败，确保附件不遗漏
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
