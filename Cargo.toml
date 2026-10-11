@@ -1,0 +1,35 @@
+[package]
+name = "st-gateway"
+version = "0.1.0"
+edition = "2021"
+description = "Rust gateway for SillyTavern: auth replication, transparent forwarding, and memory-efficient local implementation of selected /api routes"
+
+[dependencies]
+axum = { version = "0.8", features = ["http1", "json"] }
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+http-body-util = "0.1"
+tower = "0.5"
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+libc = "0.2"
+bytes = "1"
+sha1 = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+chrono = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+percent-encoding = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
