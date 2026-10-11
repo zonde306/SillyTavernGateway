@@ -11,6 +11,7 @@ pub mod disk_cache;
 pub mod forward;
 pub mod png;
 pub mod routes;
+pub mod thumbnails;
 
 use std::sync::Arc;
 
@@ -20,4 +21,6 @@ pub struct AppState {
     pub node: forward::NodeClient,
     /// Shared node-persist-compatible disk cache (data/_cache/characters).
     pub disk_cache: disk_cache::DiskCache,
+    /// Thumbnail decode limiter (permits derived from batch_bytes budget).
+    pub thumb_limiter: std::sync::Arc<thumbnails::ThumbLimiter>,
 }

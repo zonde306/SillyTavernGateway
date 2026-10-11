@@ -45,8 +45,79 @@ pub struct StConfig {
     pub sessionTimeout: Option<i64>,
     /// `performance:` section — only lazyLoadCharacters is consumed.
     pub performance: Option<PerformanceSection>,
+    /// `thumbnails:` section (format, quality, dimensions, enabled).
+    pub thumbnails: Option<ThumbnailsSection>,
     /// Gateway-specific section.
     pub gateway: Option<GatewaySection>,
+}
+
+/// Mirror of ST's `thumbnails:` config section.
+#[allow(non_snake_case)]
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct ThumbnailsSection {
+    pub enabled: Option<bool>,
+    /// Output format: "jpg" (default) or "png".
+    pub format: Option<String>,
+    /// JPEG quality, 1-100 (default 95).
+    pub quality: Option<u8>,
+    /// Per-type output dimensions [width, height].
+    pub dimensions: Option<ThumbnailDimensions>,
+}
+
+/// Per-type thumbnail dimensions, mirroring `thumbnailDimensions` in
+/// image-metadata.js.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct ThumbnailDimensions {
+    pub bg: Option<Vec<u32>>,
+    pub avatar: Option<Vec<u32>>,
+    pub persona: Option<Vec<u32>>,
+}
+
+impl ThumbnailsSection {
+    pub fn enabled(&self) -> bool {
+        self.enabled.unwrap_or(true)
+    }
+
+    pub fn format_is_png(&self) -> bool {
+        self.format
+            .as_deref()
+            .map(|f| f.to_ascii_lowercase().trim() == "png")
+            .unwrap_or(false)
+    }
+
+    pub fn quality(&self) -> u8 {
+        self.quality.unwrap_or(95).clamp(1, 100)
+    }
+
+    /// Dimensions for a type ("bg" | "avatar" | "persona"), defaults per
+    /// upstream: bg [160,90], avatar/persona [96,144].
+    pub fn dims(&self, type_name: &str) -> (u32, u32) {
+        let defaults: &[(&str, u32, u32)] =
+            &[("bg", 160, 90), ("avatar", 96, 144), ("persona", 96, 144)];
+        let d = self.dimensions.as_ref();
+        for (name, w, h) in defaults {
+            if *name == type_name {
+                let configured = match d {
+                    Some(dim) => match *name {
+                        "bg" => dim.bg.as_deref(),
+                        "avatar" => dim.avatar.as_deref(),
+                        "persona" => dim.persona.as_deref(),
+                        _ => None,
+                    },
+                    None => None,
+                };
+                if let Some(v) = configured {
+                    if v.len() >= 2 {
+                        return (v[0], v[1]);
+                    }
+                }
+                return (*w, *h);
+            }
+        }
+        (96, 144)
+    }
 }
 
 /// Mirror of ST's `performance:` config section.
@@ -196,6 +267,64 @@ impl ResolvedConfig {
 
     pub fn user_dir(&self, handle: &str) -> PathBuf {
         self.data_root.join(handle)
+    }
+
+    /// Thumbnail output format is PNG (else JPEG). Mirrors upstream
+    /// `thumbnails.format` config read.
+    pub fn thumb_format_is_png(&self) -> bool {
+        self.st
+            .thumbnails
+            .as_ref()
+            .map(|t| t.format_is_png())
+            .unwrap_or(false)
+    }
+
+    /// JPEG quality 1-100 (upstream default 95).
+    pub fn thumb_quality(&self) -> u8 {
+        self.st
+            .thumbnails
+            .as_ref()
+            .map(|t| t.quality())
+            .unwrap_or(95)
+    }
+
+    /// Whether thumbnails are enabled (upstream `thumbnails.enabled`).
+    pub fn thumb_enabled(&self) -> bool {
+        self.st
+            .thumbnails
+            .as_ref()
+            .map(|t| t.enabled())
+            .unwrap_or(true)
+    }
+
+    /// Dimensions for a thumbnail type ("bg"|"avatar"|"persona").
+    pub fn thumb_dims(&self, type_name: &str) -> (u32, u32) {
+        self.st
+            .thumbnails
+            .as_ref()
+            .map(|t| t.dims(type_name))
+            .unwrap_or_else(|| match type_name {
+                "bg" => (160, 90),
+                _ => (96, 144),
+            })
+    }
+
+    /// Per-request resolution value returned in thumbnail JSON (w*h).
+    pub fn thumb_resolution(&self, type_name: &str) -> u32 {
+        let (w, h) = self.thumb_dims(type_name);
+        w.saturating_mul(h)
+    }
+
+    /// Thumbnail decode concurrency: derived from batch_bytes (the designed
+    /// memory budget). Each in-flight decode may hold the full RGBA bitmap of
+    /// the source image; worst case is bounded by bitmap-permit sizing:
+    /// batch_bytes / 8 MiB (approx bitmap size of a large avatar), min 1,
+    /// max 16. This keeps total decode memory under the same budget that
+    /// governs /all batching.
+    pub fn thumb_concurrency(&self) -> usize {
+        let budget = self.gateway.batch_bytes.unwrap_or(256 * 1024 * 1024);
+        let permits = (budget / (8 * 1024 * 1024)).max(1) as usize;
+        permits.min(16)
     }
 
     pub fn cookie_secret_path(&self) -> PathBuf {

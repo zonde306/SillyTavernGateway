@@ -55,7 +55,15 @@ fn check_auth(
 }
 
 pub fn build_router(state: Arc<AppState>) -> axum::Router {
-    axum::Router::new()
+    let thumbnail_local = state.cfg.route_mode("/thumbnail") == crate::config::RouteMode::Local;
+    let mut router = axum::Router::new();
+    if thumbnail_local {
+        router = router.route(
+            "/thumbnail",
+            axum::routing::get(crate::thumbnails::thumbnail_route),
+        );
+    }
+    router
         .route("/api/characters/all", post(characters_all))
         .route("/api/characters/get", post(characters_get))
         .route("/api/characters/edit", post(characters_edit))
@@ -817,6 +825,9 @@ mod tests {
         );
         let cfg = crate::config::ResolvedConfig::from_text(&cfg_text, dir.path().to_path_buf());
         let state = Arc::new(AppState {
+            thumb_limiter: std::sync::Arc::new(crate::thumbnails::ThumbLimiter::new(
+                cfg.thumb_concurrency(),
+            )),
             disk_cache: crate::disk_cache::DiskCache::new(&cfg.data_root),
             cfg: Arc::new(cfg),
             node: forward::NodeClient::new(),

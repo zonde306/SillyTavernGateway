@@ -53,6 +53,9 @@ async fn main() {
         .unwrap_or_else(|e| panic!("invalid listen_addr {}: {e}", cfg.listen_addr()));
 
     let state = Arc::new(AppState {
+        thumb_limiter: std::sync::Arc::new(st_gateway::thumbnails::ThumbLimiter::new(
+            cfg.thumb_concurrency(),
+        )),
         disk_cache: st_gateway::disk_cache::DiskCache::new(&cfg.data_root),
         cfg,
         node: forward::NodeClient::new(),

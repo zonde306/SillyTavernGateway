@@ -23,6 +23,16 @@ frontend lazy-loads full cards via `/api/characters/get` on demand. With
 tousands of cards this shrinks the list payload ~100x and avoids proxy-buffer
 OOMs (nginx included).
 
+## Thumbnail route
+
+`/thumbnail` is served locally with the `image` crate (native decode, no
+WASM): ~10x faster cold generation than Jimp, fully parallel. Decode
+concurrency derives from `gateway.batch_bytes` (`batch_bytes / 8 MiB` per
+in-flight decode, clamped 1..16) so total decode memory stays inside the
+same budget that governs `/all` batching. Animated APNG/WebP detection,
+Firefox cache headers, sanitize validation, mtime invalidation, and
+config-driven format/quality/dimensions all mirror upstream.
+
 ## Shared disk cache
 
 The gateway reads AND writes the same on-disk cache the Node backend uses
