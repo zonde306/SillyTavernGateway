@@ -123,6 +123,10 @@ phase B).
   failure, single-file stub semantics without retry, toShallow projection
   and lodash-get defaults, cache hit == full parse, corrupt-cache fallback,
   node-persist datum format, ...).
+- 6 B2 tests: create (default avatar + card chunks), create with upload+crop
+  (512×768 want_resize), edit-avatar (image replaced, card data survives),
+  import png v2 roundtrip, import yaml, edit-full JSON branch (chunk surgery
+  keeps image decodable).
 - 5 B1 tests: sanitize-filename vectors from the REAL Node package, PNG-name
   dedup, edit-attribute dual-level field writes, rename end-to-end (card
   rewrite + chats migration + unlink), export-json private-field stripping.

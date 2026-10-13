@@ -27,6 +27,7 @@ chrono = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 percent-encoding = "2"
+multer = "3.1.0"
 
 [dev-dependencies]
 tempfile = "3"

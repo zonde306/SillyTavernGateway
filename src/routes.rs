@@ -11,6 +11,7 @@ use axum::routing::{get, post};
 use serde_json::json;
 
 use crate::auth::{AuthError, Authenticator};
+use crate::avatar;
 use crate::disk_cache;
 use crate::{card, forward, png, AppState};
 
@@ -66,13 +67,16 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
     router
         .route("/api/characters/all", post(characters_all))
         .route("/api/characters/get", post(characters_get))
-        .route("/api/characters/edit", post(characters_edit))
+        .route("/api/characters/edit", post(characters_edit_full))
         .route(
             "/api/characters/edit-attribute",
             post(characters_edit_attribute),
         )
         .route("/api/characters/rename", post(characters_rename))
         .route("/api/characters/export", post(characters_export))
+        .route("/api/characters/create", post(characters_create))
+        .route("/api/characters/edit-avatar", post(characters_edit_avatar))
+        .route("/api/characters/import", post(characters_import))
         .route("/csrf-token", get(csrf_token_forward))
         .fallback(fallback)
         .with_state(state)
@@ -503,170 +507,8 @@ fn sanitize_like(name: &str) -> String {
         .collect()
 }
 
-/// POST /api/characters/edit — local implementation (no avatar upload; the
-/// multipart/crop variant is still forwarded).
-async fn characters_edit(State(state): State<Arc<AppState>>, req: Request<Body>) -> Response {
-    let (parts, body) = req.into_parts();
-    if parts.uri.query().map(|q| !q.is_empty()).unwrap_or(false) {
-        // crop query present => avatar processing required => forward to Node.
-        let rebuilt = Request::from_parts(parts, body);
-        return forward::proxy(state, rebuilt).await;
-    }
-    // multipart content-type => upload branch => forward.
-    if let Some(ct) = parts.headers.get(axum::http::header::CONTENT_TYPE) {
-        if ct
-            .to_str()
-            .map(|s| s.starts_with("multipart/"))
-            .unwrap_or(false)
-        {
-            let rebuilt = Request::from_parts(parts, body);
-            return forward::proxy(state, rebuilt).await;
-        }
-    }
-
-    let auth = match check_auth(&state, &parts) {
-        Ok(a) => a,
-        Err(resp) => return resp,
-    };
-    let body_bytes = match axum::body::to_bytes(body, 256 * 1024 * 1024).await {
-        Ok(b) => b,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
-    };
-    let form: serde_json::Value = match serde_json::from_slice(&body_bytes) {
-        Ok(v) => v,
-        Err(_) => {
-            return (StatusCode::BAD_REQUEST, "Error: no response body detected").into_response()
-        }
-    };
-
-    let ch_name = form.get("ch_name").and_then(|v| v.as_str()).unwrap_or("");
-    if ch_name.is_empty() || ch_name == "." {
-        return (StatusCode::BAD_REQUEST, "Error: invalid name.").into_response();
-    }
-    let avatar_url = match form.get("avatar_url").and_then(|v| v.as_str()) {
-        Some(s) => s.trim_end_matches(".png").to_string(),
-        None => return StatusCode::BAD_REQUEST.into_response(),
-    };
-
-    let deps = user_dirs(&state, &auth.handle);
-    let avatar_path = deps.characters_dir.join(format!("{avatar_url}.png"));
-    if !avatar_path.exists() {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-
-    let data_root = state.cfg.data_root.clone();
-    let result =
-        tokio::task::spawn_blocking(move || edit_character(&form, &deps, avatar_url, &data_root))
-            .await
-            .unwrap_or_else(|e| Err(format!("join error: {e}")));
-
-    match result {
-        Ok(()) => StatusCode::OK.into_response(),
-        Err(e) => {
-            tracing::error!("An error occurred, character edit invalidated: {e}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
-}
-
 /// Mirrors /edit flow: charaFormatData(request.body) on the *existing* card
 /// JSON (json_data), write back via chunk surgery.
-fn edit_character(
-    form: &serde_json::Value,
-    deps: &card::CardDeps,
-    target_file: String,
-    data_root: &std::path::Path,
-) -> Result<(), String> {
-    let avatar_png = format!("{target_file}.png");
-    let file_path = deps.characters_dir.join(&avatar_png);
-
-    // Read existing card JSON (raw string from tEXt).
-    let chunks = png::read_text_chunks(&file_path).map_err(|e| e.to_string())?;
-    let existing_raw = png::extract_card_json(&chunks)?;
-    let existing: serde_json::Value = serde_json::from_str(&existing_raw)
-        .map_err(|e| format!("existing card is not valid JSON: {e}"))?;
-
-    let get = |k: &str| form.get(k).cloned().unwrap_or(serde_json::Value::Null);
-    let input = card::FormatDataInput {
-        ch_name: get("ch_name"),
-        description: get("description"),
-        personality: get("personality"),
-        scenario: get("scenario"),
-        first_mes: get("first_mes"),
-        mes_example: get("mes_example"),
-        creator_notes: get("creator_notes"),
-        talkativeness: get("talkativeness"),
-        fav: get("fav"),
-        creator: get("creator"),
-        tags: get("tags"),
-        depth_prompt_prompt: get("depth_prompt_prompt"),
-        depth_prompt_depth: get("depth_prompt_depth"),
-        depth_prompt_role: get("depth_prompt_role"),
-        system_prompt: get("system_prompt"),
-        post_history_instructions: get("post_history_instructions"),
-        character_version: get("character_version"),
-        alternate_greetings: get("alternate_greetings"),
-        world: get("world"),
-        extensions: get("extensions"),
-    };
-
-    // charaFormatData: existing card as base (json_data equivalent).
-    let mut char = card::chara_format_data_from_parts(&input, existing);
-
-    // World info embedding when data.world is set (JS reads worlds/*.json).
-    if let Some(world) = form
-        .get("world")
-        .and_then(|w| w.as_str())
-        .filter(|s| !s.is_empty())
-    {
-        let sanitized: String = world
-            .chars()
-            .filter(|c| {
-                !c.is_control()
-                    && !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
-            })
-            .collect();
-        let wi_path = deps.worlds_dir.join(format!("{sanitized}.json"));
-        if let Ok(text) = std::fs::read_to_string(&wi_path) {
-            if let Ok(world_info) = serde_json::from_str::<serde_json::Value>(&text) {
-                if let Some(original) = world_info.get("originalData") {
-                    card::set_path_value(&mut char, "data.character_book", original.clone());
-                } else if let Some(entries) = world_info.get("entries") {
-                    let book = card::convert_world_info_to_character_book(world, entries);
-                    card::set_path_value(&mut char, "data.character_book", book);
-                }
-            }
-        }
-    }
-
-    // char.chat = request.body.chat; char.create_date = request.body.create_date
-    if let Some(chat) = form.get("chat") {
-        card::set_path_value(&mut char, "chat", chat.clone());
-    }
-    if let Some(cd) = form.get("create_date") {
-        card::set_path_value(&mut char, "create_date", cd.clone());
-    }
-
-    let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
-
-    // Write back: remove old chara/ccv3, insert fresh chara (v2 base64) —
-    // matching write() semantics (v3 chunk only added on import paths).
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(char_json.as_bytes());
-    let new_chunk = png::encode_text_chunk("chara", &b64);
-    png::write_card_to_png(&file_path, &[new_chunk]).map_err(|e| e.to_string())?;
-
-    // Cache invalidation: the mtime-keyed entry for this file is now stale.
-    // Node handles this naturally (its getCacheKey embeds mtimeMs); run the
-    // same prune so stale entries (ours or Node's) don't accumulate.
-    let cache = disk_cache::DiskCache::new(data_root);
-    let pruned = cache.prune();
-    if pruned > 0 {
-        tracing::debug!(pruned, "disk cache pruned after edit");
-    }
-    Ok(())
-}
-
 /// Read a card's raw JSON via chunk surgery (shared by B1 handlers).
 fn read_card_raw(file_path: &std::path::Path) -> Result<String, String> {
     let chunks = png::read_text_chunks(file_path).map_err(|e| e.to_string())?;
@@ -1004,6 +846,1003 @@ fn export_sync(
         }
         _ => Err("unsupported format".to_string()),
     }
+}
+
+// =====================================================================
+// B2: /import, /create, /edit (multipart+crop), /edit-avatar
+// =====================================================================
+
+/// One parsed multipart part set (multer `.single('avatar')` semantics:
+/// fields into body, file into request.file).
+struct MultipartUpload {
+    fields: Vec<(String, String)>,
+    file_bytes: Option<Vec<u8>>,
+    file_name: Option<String>,
+}
+
+/// Decode a multipart/form-data body. Mirrors multer + multerMonkeyPatch
+/// (file field named 'avatar'; latin1 filename decode applied by callers if
+/// needed for naming).
+async fn parse_multipart(content_type: &str, body: Body) -> Result<MultipartUpload, String> {
+    let stream = body.into_data_stream();
+    let mut m = multer::Multipart::new(stream, content_type.to_string());
+    let mut out = MultipartUpload {
+        fields: Vec::new(),
+        file_bytes: None,
+        file_name: None,
+    };
+    while let Some(field) = m
+        .next_field()
+        .await
+        .map_err(|e| format!("multipart: {e}"))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "avatar" {
+            out.file_name = field.file_name().map(|s| s.to_string());
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| format!("multipart read: {e}"))?;
+            out.file_bytes = Some(bytes.to_vec());
+        } else {
+            let text = field
+                .text()
+                .await
+                .map_err(|e| format!("multipart field: {e}"))?;
+            out.fields.push((name, text));
+        }
+    }
+    Ok(out)
+}
+
+/// Mirror of charaFormatData (the /create + /edit entry point): json_data
+/// base, all fields set, world info embedded. Returns the card JSON string.
+fn chara_format_data_full(data: &serde_json::Value, deps: &card::CardDeps) -> String {
+    // tryParse(data.json_data) || {}
+    let existing: serde_json::Value = data
+        .get("json_data")
+        .and_then(|v| v.as_str())
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_else(|| json!({}));
+    let get = |k: &str| data.get(k).cloned().unwrap_or(serde_json::Value::Null);
+    let input = card::FormatDataInput {
+        ch_name: get("ch_name"),
+        description: get("description"),
+        personality: get("personality"),
+        scenario: get("scenario"),
+        first_mes: get("first_mes"),
+        mes_example: get("mes_example"),
+        creator_notes: get("creator_notes"),
+        talkativeness: get("talkativeness"),
+        fav: get("fav"),
+        creator: get("creator"),
+        tags: get("tags"),
+        depth_prompt_prompt: get("depth_prompt_prompt"),
+        depth_prompt_depth: get("depth_prompt_depth"),
+        depth_prompt_role: get("depth_prompt_role"),
+        system_prompt: get("system_prompt"),
+        post_history_instructions: get("post_history_instructions"),
+        character_version: get("character_version"),
+        alternate_greetings: get("alternate_greetings"),
+        world: get("world"),
+        extensions: get("extensions"),
+    };
+    let mut char = card::chara_format_data_from_parts(&input, existing);
+
+    // World info embedding (mirrors readWorldInfoFile in the JS flow)
+    if let Some(world) = data
+        .get("world")
+        .and_then(|w| w.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        let sanitized: String = world
+            .chars()
+            .filter(|c| {
+                !c.is_control()
+                    && !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+            })
+            .collect();
+        let wi_path = deps.worlds_dir.join(format!("{sanitized}.json"));
+        if let Ok(text) = std::fs::read_to_string(&wi_path) {
+            if let Ok(world_info) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(original) = world_info.get("originalData") {
+                    card::set_path_value(&mut char, "data.character_book", original.clone());
+                } else if let Some(entries) = world_info.get("entries") {
+                    let book = card::convert_world_info_to_character_book(world, entries);
+                    card::set_path_value(&mut char, "data.character_book", book);
+                }
+            }
+        }
+    }
+    serde_json::to_string(&char).unwrap_or_default()
+}
+
+/// Chunk bytes for a freshly built card: chara (v2) + ccv3 (v3) tEXt, as
+/// character-card-parser.js#write does for all writeCharacterData paths.
+fn card_chunks(card_json: &str) -> Vec<Vec<u8>> {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(card_json.as_bytes());
+    let mut chunks = vec![png::encode_text_chunk("chara", &b64)];
+    if let Ok(mut v3) = serde_json::from_str::<serde_json::Value>(card_json) {
+        if let Some(o) = v3.as_object_mut() {
+            o.insert("spec".into(), json!("chara_card_v3"));
+            o.insert("spec_version".into(), json!("3.0"));
+        }
+        let v3_json = serde_json::to_string(&v3).unwrap_or_default();
+        let v3_b64 = base64::engine::general_purpose::STANDARD.encode(v3_json.as_bytes());
+        chunks.push(png::encode_text_chunk("ccv3", &v3_b64));
+    }
+    chunks
+}
+
+/// Splice card chunks into image bytes and write characters/<output>.png.
+/// `image_bytes` may be a re-encoded PNG (crop path) or raw passthrough
+/// (undecodable input); both are full PNG byte buffers.
+fn write_card_bytes(
+    image_bytes: Vec<u8>,
+    card_json: &str,
+    output_file: &str,
+    deps: &card::CardDeps,
+) -> Result<(), String> {
+    let chunks = card_chunks(card_json);
+    let out_path = deps.characters_dir.join(format!("{output_file}.png"));
+    // Materialize the image bytes, then run the in-place chunk splice
+    // (write_card_to_png reads src, writes src.png.tmp, renames back to src).
+    std::fs::write(&out_path, &image_bytes).map_err(|e| format!("image write: {e}"))?;
+    png::write_card_to_png(&out_path, &chunks).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// writeCharacterData(DEFAULT_AVATAR_PATH, ...) — splice into a copy of
+/// public/img/ai4.png.
+fn write_default_avatar_card(
+    data_root: &std::path::Path,
+    card_json: &str,
+    output_file: &str,
+    deps: &card::CardDeps,
+) -> Result<(), String> {
+    // Node: DEFAULT_AVATAR_PATH = './public/img/ai4.png' relative to cwd
+    // (SillyTavern root). Try cwd-relative, data_root-relative, and walking
+    // up from data_root (covers test cwd = src-rs and nonstandard layouts).
+    let mut candidates = vec![
+        std::path::PathBuf::from("./public/img/ai4.png"),
+        data_root.join("../public/img/ai4.png"),
+    ];
+    // Walk up from data_root AND from cwd (tests run in src-rs; the gateway
+    // runs in the ST root, so cwd-relative hits immediately in production).
+    for root in [Some(data_root.to_path_buf()), std::env::current_dir().ok()] {
+        let mut cur = root;
+        while let Some(dir) = cur {
+            candidates.push(dir.join("public/img/ai4.png"));
+            cur = dir.parent().map(|p| p.to_path_buf());
+        }
+    }
+    let mut raw = None;
+    for c in &candidates {
+        if let Ok(bytes) = std::fs::read(c) {
+            raw = Some(bytes);
+            break;
+        }
+    }
+    let raw = raw.ok_or_else(|| "default avatar missing: ./public/img/ai4.png".to_string())?;
+    write_card_bytes(raw, card_json, output_file, deps)
+}
+
+/// Crop query parameter parser (`tryParse(request.query.crop)`).
+fn parse_crop_query(query: Option<&str>) -> Option<avatar::Crop> {
+    let v = query?;
+    let decoded = percent_decode(v);
+    let parsed: serde_json::Value = serde_json::from_str(&decoded).ok()?;
+    avatar::Crop::from_value(&parsed)
+}
+
+/// Extract a `crop` query value from a raw query string.
+fn crop_from_query(query: Option<&str>) -> Option<avatar::Crop> {
+    query
+        .and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("crop=")))
+        .and_then(|v| parse_crop_query(Some(v)))
+}
+
+/// POST /api/characters/create — multipart or JSON, optional crop query,
+/// optional avatar upload; falls back to the default avatar image.
+async fn characters_create(State(state): State<Arc<AppState>>, req: Request<Body>) -> Response {
+    let (parts, body) = req.into_parts();
+    let auth = match check_auth(&state, &parts) {
+        Ok(a) => a,
+        Err(resp) => return resp,
+    };
+    let ct = parts
+        .headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let crop = crop_from_query(parts.uri.query());
+
+    let body_bytes = match axum::body::to_bytes(body, 512 * 1024 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let (form, upload): (serde_json::Value, Option<Vec<u8>>) = if ct.starts_with("multipart/") {
+        let mp = match parse_multipart(&ct, axum::body::Body::from(body_bytes)).await {
+            Ok(m) => m,
+            Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        };
+        let mut obj = serde_json::Map::new();
+        for (k, v) in &mp.fields {
+            obj.insert(k.clone(), json!(v));
+        }
+        (serde_json::Value::Object(obj), mp.file_bytes)
+    } else {
+        match serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+            Ok(v) => (v, None),
+            Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        }
+    };
+
+    // getFileNameValidationFunction('file_name'): forbiddenRegExp
+    if let Some(fn_name) = form.get("file_name").and_then(|v| v.as_str()) {
+        if fn_name.contains('/') || fn_name.contains('\\') || fn_name.contains('\0') {
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    }
+
+    let ch_name = match form.get("ch_name").and_then(|v| v.as_str()) {
+        Some(s) => card::sanitize_filename(s),
+        None => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let deps = user_dirs(&state, &auth.handle);
+    let data_root = state.cfg.data_root.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        create_sync(&form, &ch_name, upload.as_deref(), crop, &deps, &data_root)
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("join error: {e}")));
+
+    match result {
+        Ok(avatar_name) => (
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            avatar_name,
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!("create failed: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+fn create_sync(
+    form: &serde_json::Value,
+    ch_name: &str,
+    upload: Option<&[u8]>,
+    crop: Option<avatar::Crop>,
+    deps: &card::CardDeps,
+    data_root: &std::path::Path,
+) -> Result<String, String> {
+    let card_json = chara_format_data_full(form, deps);
+    let internal_name = match form.get("file_name").and_then(|v| v.as_str()) {
+        Some(f) if !f.is_empty() => f.to_string(),
+        _ => card::get_png_name(ch_name, &deps.characters_dir),
+    };
+    let avatar_name = format!("{internal_name}.png");
+
+    // upstream mkdirSync(chatsPath) unconditionally
+    let chats_path = deps.chats_dir.join(&internal_name);
+    if !chats_path.exists() {
+        std::fs::create_dir_all(&chats_path).map_err(|e| e.to_string())?;
+    }
+
+    match upload {
+        None => {
+            write_default_avatar_card(data_root, &card_json, &internal_name, deps)?;
+        }
+        Some(bytes) => {
+            let prepared = avatar::prepare_image_bytes(bytes, crop.as_ref())?;
+            write_card_bytes(prepared, &card_json, &internal_name, deps)?;
+        }
+    }
+    disk_cache::DiskCache::new(data_root).prune();
+    Ok(avatar_name)
+}
+
+/// POST /api/characters/edit — full handler: JSON (chunk surgery) and
+/// multipart+crop (decode/crop/encode) branches, replacing the forward-on-
+/// upload placeholder from B1.
+async fn characters_edit_full(State(state): State<Arc<AppState>>, req: Request<Body>) -> Response {
+    let (parts, body) = req.into_parts();
+    let auth = match check_auth(&state, &parts) {
+        Ok(a) => a,
+        Err(resp) => return resp,
+    };
+    let ct = parts
+        .headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let crop = crop_from_query(parts.uri.query());
+
+    let body_bytes = match axum::body::to_bytes(body, 512 * 1024 * 1024).await {
+        Ok(b) => b,
+        Err(_) => {
+            return (StatusCode::BAD_REQUEST, "Error: no response body detected").into_response()
+        }
+    };
+
+    let (form, upload): (serde_json::Value, Option<Vec<u8>>) = if ct.starts_with("multipart/") {
+        let mp = match parse_multipart(&ct, axum::body::Body::from(body_bytes)).await {
+            Ok(m) => m,
+            Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        };
+        let mut obj = serde_json::Map::new();
+        for (k, v) in &mp.fields {
+            obj.insert(k.clone(), json!(v));
+        }
+        (serde_json::Value::Object(obj), mp.file_bytes)
+    } else {
+        match serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+            Ok(v) => (v, None),
+            Err(_) => {
+                return (StatusCode::BAD_REQUEST, "Error: no response body detected")
+                    .into_response()
+            }
+        }
+    };
+
+    let ch_name = form.get("ch_name").and_then(|v| v.as_str()).unwrap_or("");
+    if ch_name.is_empty() || ch_name == "." {
+        return (StatusCode::BAD_REQUEST, "Error: invalid name.").into_response();
+    }
+    let avatar_url = match form.get("avatar_url").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let deps = user_dirs(&state, &auth.handle);
+    let data_root = state.cfg.data_root.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        edit_full_sync(
+            &form,
+            &avatar_url,
+            upload.as_deref(),
+            crop,
+            &deps,
+            &data_root,
+        )
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("join error: {e}")));
+
+    match result {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(e) => {
+            tracing::error!("An error occurred, character edit invalidated: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+fn edit_full_sync(
+    form: &serde_json::Value,
+    avatar_url: &str,
+    upload: Option<&[u8]>,
+    crop: Option<avatar::Crop>,
+    deps: &card::CardDeps,
+    data_root: &std::path::Path,
+) -> Result<(), String> {
+    let card_json = chara_format_data_full(form, deps);
+    // char.chat / char.create_date overrides (upstream /edit)
+    let mut char_v: serde_json::Value =
+        serde_json::from_str(&card_json).map_err(|e| e.to_string())?;
+    if let Some(chat) = form.get("chat") {
+        card::set_path_value(&mut char_v, "chat", chat.clone());
+    }
+    if let Some(cd) = form.get("create_date") {
+        card::set_path_value(&mut char_v, "create_date", cd.clone());
+    }
+    let card_json = serde_json::to_string(&char_v).map_err(|e| e.to_string())?;
+    let target_file = avatar_url.replace(".png", "");
+
+    match upload {
+        None => {
+            let avatar_path = deps.characters_dir.join(avatar_url);
+            write_card_raw(&avatar_path, &card_json, data_root)
+        }
+        Some(bytes) => {
+            invalidate_avatar_thumbnail(deps, avatar_url);
+            let prepared = avatar::prepare_image_bytes(bytes, crop.as_ref())?;
+            write_card_bytes(prepared, &card_json, &target_file, deps)?;
+            disk_cache::DiskCache::new(data_root).prune();
+            Ok(())
+        }
+    }
+}
+
+/// POST /api/characters/edit-avatar — replace the image, keep card data.
+async fn characters_edit_avatar(
+    State(state): State<Arc<AppState>>,
+    req: Request<Body>,
+) -> Response {
+    let (parts, body) = req.into_parts();
+    let auth = match check_auth(&state, &parts) {
+        Ok(a) => a,
+        Err(resp) => return resp,
+    };
+    let ct = parts
+        .headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    if !ct.starts_with("multipart/") {
+        return (StatusCode::BAD_REQUEST, "Error: no file uploaded").into_response();
+    }
+    let crop = crop_from_query(parts.uri.query());
+
+    let body_bytes = match axum::body::to_bytes(body, 512 * 1024 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    let mp = match parse_multipart(&ct, axum::body::Body::from(body_bytes)).await {
+        Ok(m) => m,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    let fields = mp.fields.clone();
+    let upload = match mp.file_bytes {
+        Some(b) => b,
+        None => return (StatusCode::BAD_REQUEST, "Error: no file uploaded").into_response(),
+    };
+    let avatar_url = match fields
+        .iter()
+        .find(|(k, _)| k == "avatar_url")
+        .map(|(_, v)| v.as_str())
+    {
+        Some(s) => s.to_string(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Error: no avatar_url in request body",
+            )
+                .into_response()
+        }
+    };
+
+    let deps = user_dirs(&state, &auth.handle);
+    let data_root = state.cfg.data_root.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        edit_avatar_sync(&upload, &avatar_url, crop, &deps, &data_root)
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("join error: {e}")));
+
+    match result {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(e) => {
+            tracing::error!("An error occurred while editing avatar: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+fn edit_avatar_sync(
+    upload: &[u8],
+    avatar_url: &str,
+    crop: Option<avatar::Crop>,
+    deps: &card::CardDeps,
+    data_root: &std::path::Path,
+) -> Result<(), String> {
+    let character_path = deps.characters_dir.join(avatar_url);
+    if !character_path.exists() {
+        return Err("character file does not exist".into());
+    }
+    // readCharacterData: existing card JSON preserved verbatim
+    let data = read_card_raw(&character_path)?;
+
+    invalidate_avatar_thumbnail(deps, avatar_url);
+    let prepared = avatar::prepare_image_bytes(upload, crop.as_ref())?;
+    let file_name = avatar_url.replace(".png", "");
+    write_card_bytes(prepared, &data, &file_name, deps)?;
+    disk_cache::DiskCache::new(data_root).prune();
+    Ok(())
+}
+
+/// invalidateThumbnail(directories, 'avatar', file): unlink
+/// <user>/thumbnails/avatar/<file>.
+fn invalidate_avatar_thumbnail(deps: &card::CardDeps, avatar_url: &str) {
+    let safe = card::sanitize_filename(avatar_url);
+    let thumb = deps
+        .characters_dir
+        .parent()
+        .map(|p| p.join("thumbnails/avatar").join(safe));
+    if let Some(t) = thumb {
+        if t.is_file() {
+            let _ = std::fs::remove_file(t);
+        }
+    }
+}
+
+/// POST /api/characters/import — png/json/yaml formats (charx/byaf remain
+/// forwarded: zip/binary parsers, rare).
+async fn characters_import(State(state): State<Arc<AppState>>, req: Request<Body>) -> Response {
+    let (parts, body) = req.into_parts();
+    let auth = match check_auth(&state, &parts) {
+        Ok(a) => a,
+        Err(resp) => return resp,
+    };
+    let ct = parts
+        .headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    if !ct.starts_with("multipart/") {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let body_bytes = match axum::body::to_bytes(body, 512 * 1024 * 1024).await {
+        Ok(b) => b,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    let mp = match parse_multipart(&ct, axum::body::Body::from(body_bytes)).await {
+        Ok(m) => m,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    let fields = mp.fields.clone();
+    let upload = match mp.file_bytes {
+        Some(b) => b,
+        None => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    let field = |name: &str| {
+        fields
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    };
+    let format = field("file_type").unwrap_or("").to_string();
+    let preserved = field("preserved_name")
+        .filter(|s| !s.is_empty())
+        .and_then(|s| {
+            std::path::Path::new(s)
+                .file_stem()
+                .map(|f| f.to_string_lossy().to_string())
+        })
+        .filter(|s| !s.is_empty());
+
+    if !matches!(format.as_str(), "png" | "json" | "yaml" | "yml") {
+        // unsupported format → upstream throws → catch sends { error: true };
+        // charx/byaf stay forwarded at the router level (route_mode).
+        return (
+            [(axum::http::header::CONTENT_TYPE, "application/json")],
+            json!({ "error": true }).to_string(),
+        )
+            .into_response();
+    }
+
+    let deps = user_dirs(&state, &auth.handle);
+    let deps2 = deps.clone();
+    let data_root = state.cfg.data_root.clone();
+
+    let preserved_for_invalidate = preserved.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        import_sync(&upload, &format, preserved.as_deref(), &deps2, &data_root)
+    })
+    .await
+    .unwrap_or_else(|e| Err(format!("join error: {e}")));
+
+    match result {
+        Ok(file_name) if !file_name.is_empty() => {
+            if let Some(p) = &preserved_for_invalidate {
+                invalidate_avatar_thumbnail(&deps, &format!("{p}.png"));
+            }
+            (
+                [(axum::http::header::CONTENT_TYPE, "application/json")],
+                json!({ "file_name": file_name }).to_string(),
+            )
+                .into_response()
+        }
+        Ok(_) => {
+            tracing::warn!("Failed to import character");
+            StatusCode::BAD_REQUEST.into_response()
+        }
+        Err(e) => {
+            tracing::error!("import failed: {e}");
+            (
+                [(axum::http::header::CONTENT_TYPE, "application/json")],
+                json!({ "error": true }).to_string(),
+            )
+                .into_response()
+        }
+    }
+}
+
+fn import_sync(
+    upload: &[u8],
+    format: &str,
+    preserved: Option<&str>,
+    deps: &card::CardDeps,
+    data_root: &std::path::Path,
+) -> Result<String, String> {
+    let now_iso = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    match format {
+        "png" => {
+            let raw = read_card_bytes(upload)?;
+            let mut json_data: serde_json::Value =
+                serde_json::from_str(&raw).map_err(|e| format!("card JSON invalid: {e}"))?;
+
+            if let Some(name) = json_data
+                .get("data")
+                .and_then(|d| d.get("name"))
+                .and_then(|n| n.as_str())
+            {
+                let s = card::sanitize_filename(name);
+                card::set_path_value(&mut json_data, "data.name", json!(s));
+            }
+            let top_name = json_data
+                .get("data")
+                .and_then(|d| d.get("name"))
+                .and_then(|n| n.as_str())
+                .or_else(|| json_data.get("name").and_then(|n| n.as_str()))
+                .unwrap_or("");
+            let name = card::sanitize_filename(top_name);
+            card::set_path_value(&mut json_data, "name", json!(name));
+            let png_name = preserved
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| card::get_png_name(&name, &deps.characters_dir));
+
+            if json_data.get("spec").map(|s| !s.is_null()).unwrap_or(false) {
+                // V2/V3 card
+                import_risu_sprites(json_data.get("data"), deps);
+                card::unset_private_fields(&mut json_data);
+                card::read_from_v2(&mut json_data);
+                card::set_path_value(&mut json_data, "create_date", json!(now_iso));
+                let char_json = serde_json::to_string(&json_data).map_err(|e| e.to_string())?;
+                let prepared = avatar::prepare_image_bytes(upload, None)?;
+                write_card_bytes(prepared, &char_json, &png_name, deps)?;
+                disk_cache::DiskCache::new(data_root).prune();
+                Ok(png_name)
+            } else if json_data.get("name").map(|s| !s.is_null()).unwrap_or(false) {
+                // V1 card
+                if let Some(notes) = json_data.get("creator_notes").and_then(|n| n.as_str()) {
+                    let cleaned = notes.replace("Creator's notes go here.", "");
+                    card::set_path_value(&mut json_data, "creator_notes", json!(cleaned));
+                }
+                let char = card::convert_to_v2(&v1_to_card(&json_data, &now_iso));
+                let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
+                let prepared = avatar::prepare_image_bytes(upload, None)?;
+                write_card_bytes(prepared, &char_json, &png_name, deps)?;
+                disk_cache::DiskCache::new(data_root).prune();
+                Ok(png_name)
+            } else {
+                Ok(String::new())
+            }
+        }
+        "json" => {
+            let text = String::from_utf8_lossy(upload).to_string();
+            let mut json_data: serde_json::Value =
+                serde_json::from_str(&text).map_err(|e| format!("json invalid: {e}"))?;
+            if json_data.get("spec").map(|s| !s.is_null()).unwrap_or(false) {
+                import_risu_sprites(json_data.get("data"), deps);
+                card::unset_private_fields(&mut json_data);
+                if let Some(name) = json_data
+                    .get("data")
+                    .and_then(|d| d.get("name"))
+                    .and_then(|n| n.as_str())
+                {
+                    let s = card::sanitize_filename(name);
+                    card::set_path_value(&mut json_data, "data.name", json!(s));
+                }
+                let top_name = json_data
+                    .get("data")
+                    .and_then(|d| d.get("name"))
+                    .and_then(|n| n.as_str())
+                    .or_else(|| json_data.get("name").and_then(|n| n.as_str()))
+                    .unwrap_or("");
+                let name = card::sanitize_filename(top_name);
+                card::set_path_value(&mut json_data, "name", json!(name));
+                card::read_from_v2(&mut json_data);
+                card::set_path_value(&mut json_data, "create_date", json!(now_iso));
+                let png_name = preserved
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| card::get_png_name(&name, &deps.characters_dir));
+                let char_json = serde_json::to_string(&json_data).map_err(|e| e.to_string())?;
+                write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
+                disk_cache::DiskCache::new(data_root).prune();
+                Ok(png_name)
+            } else if json_data.get("name").map(|s| !s.is_null()).unwrap_or(false) {
+                let name = card::sanitize_filename(
+                    json_data.get("name").and_then(|n| n.as_str()).unwrap_or(""),
+                );
+                if let Some(notes) = json_data.get("creator_notes").and_then(|n| n.as_str()) {
+                    let cleaned = notes.replace("Creator's notes go here.", "");
+                    card::set_path_value(&mut json_data, "creator_notes", json!(cleaned));
+                }
+                card::set_path_value(&mut json_data, "name", json!(name));
+                let png_name = preserved
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| card::get_png_name(&name, &deps.characters_dir));
+                let char = card::convert_to_v2(&v1_to_card(&json_data, &now_iso));
+                let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
+                write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
+                disk_cache::DiskCache::new(data_root).prune();
+                Ok(png_name)
+            } else if json_data
+                .get("char_name")
+                .map(|s| !s.is_null())
+                .unwrap_or(false)
+            {
+                // Pygmalion gradio json
+                let name = card::sanitize_filename(
+                    json_data
+                        .get("char_name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or(""),
+                );
+                if let Some(notes) = json_data.get("creator_notes").and_then(|n| n.as_str()) {
+                    let cleaned = notes.replace("Creator's notes go here.", "");
+                    card::set_path_value(&mut json_data, "creator_notes", json!(cleaned));
+                }
+                let png_name = preserved
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| card::get_png_name(&name, &deps.characters_dir));
+                let mut char = serde_json::json!({});
+                card::set_path_value(
+                    &mut char,
+                    "name",
+                    json_data.get("char_name").cloned().unwrap_or(json!("")),
+                );
+                card::set_path_value(
+                    &mut char,
+                    "description",
+                    json!(json_data
+                        .get("char_persona")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")),
+                );
+                card::set_path_value(
+                    &mut char,
+                    "creatorcomment",
+                    json!(json_data
+                        .get("creatorcomment")
+                        .or_else(|| json_data.get("creator_notes"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")),
+                );
+                card::set_path_value(&mut char, "personality", json!(""));
+                card::set_path_value(
+                    &mut char,
+                    "first_mes",
+                    json!(json_data
+                        .get("char_greeting")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")),
+                );
+                card::set_path_value(&mut char, "avatar", json!("none"));
+                card::set_path_value(
+                    &mut char,
+                    "chat",
+                    json!(format!(
+                        "{} - {}",
+                        json_data.get("name").and_then(|n| n.as_str()).unwrap_or(""),
+                        card::humanized_datetime()
+                    )),
+                );
+                card::set_path_value(
+                    &mut char,
+                    "mes_example",
+                    json!(json_data
+                        .get("example_dialogue")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")),
+                );
+                card::set_path_value(
+                    &mut char,
+                    "scenario",
+                    json!(json_data
+                        .get("world_scenario")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")),
+                );
+                card::set_path_value(&mut char, "create_date", json!(now_iso));
+                card::set_path_value(&mut char, "talkativeness", json!(0.5));
+                card::set_path_value(&mut char, "creator", json!(""));
+                card::set_path_value(&mut char, "tags", json!(""));
+                let char = card::convert_to_v2(&char);
+                let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
+                write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
+                disk_cache::DiskCache::new(data_root).prune();
+                Ok(png_name)
+            } else {
+                Ok(String::new())
+            }
+        }
+        "yaml" | "yml" => {
+            let text = String::from_utf8_lossy(upload).to_string();
+            let yaml_data: serde_json::Value =
+                serde_yaml::from_str(&text).map_err(|e| format!("yaml invalid: {e}"))?;
+            let name = card::sanitize_filename(
+                yaml_data.get("name").and_then(|n| n.as_str()).unwrap_or(""),
+            );
+            let png_name = preserved
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| card::get_png_name(&name, &deps.characters_dir));
+            let mut char = serde_json::json!({});
+            card::set_path_value(&mut char, "name", json!(name));
+            card::set_path_value(
+                &mut char,
+                "description",
+                json!(yaml_data
+                    .get("context")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")),
+            );
+            card::set_path_value(
+                &mut char,
+                "first_mes",
+                json!(yaml_data
+                    .get("greeting")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")),
+            );
+            card::set_path_value(&mut char, "create_date", json!(now_iso));
+            card::set_path_value(
+                &mut char,
+                "chat",
+                json!(format!(
+                    "{} - {}",
+                    yaml_data.get("name").and_then(|n| n.as_str()).unwrap_or(""),
+                    card::humanized_datetime()
+                )),
+            );
+            card::set_path_value(&mut char, "personality", json!(""));
+            card::set_path_value(&mut char, "creatorcomment", json!(""));
+            card::set_path_value(&mut char, "avatar", json!("none"));
+            card::set_path_value(&mut char, "mes_example", json!(""));
+            card::set_path_value(&mut char, "scenario", json!(""));
+            card::set_path_value(&mut char, "talkativeness", json!(0.5));
+            card::set_path_value(&mut char, "creator", json!(""));
+            card::set_path_value(&mut char, "tags", json!(""));
+            let char = card::convert_to_v2(&char);
+            let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
+            write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
+            disk_cache::DiskCache::new(data_root).prune();
+            Ok(png_name)
+        }
+        _ => Err(format!("Unsupported format: {format}")),
+    }
+}
+
+/// Read card JSON from raw PNG bytes (import path; upload is in memory).
+fn read_card_bytes(png_bytes: &[u8]) -> Result<String, String> {
+    // Reuse the streaming chunk reader via a short-lived temp file; uploads
+    // are MBs. Avoids duplicating the chunk parser for in-memory buffers.
+    let tmp = std::env::temp_dir().join(format!("st-import-{}.png", std::process::id()));
+    std::fs::write(&tmp, png_bytes).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let chunks = png::read_text_chunks(&tmp).map_err(|e| e.to_string())?;
+        png::extract_card_json(&chunks)
+    })();
+    let _ = std::fs::remove_file(&tmp);
+    result
+}
+
+/// V1 flat object literal (upstream builds this then convertToV2).
+fn v1_to_card(json_data: &serde_json::Value, now_iso: &str) -> serde_json::Value {
+    let s = |k: &str| json_data.get(k).and_then(|v| v.as_str()).unwrap_or("");
+    let name = s("name");
+    serde_json::json!({
+        "name": name,
+        "description": json_data.get("description").cloned().unwrap_or(json!("")),
+        "creatorcomment": json_data.get("creatorcomment")
+            .or_else(|| json_data.get("creator_notes"))
+            .and_then(|v| v.as_str()).unwrap_or(""),
+        "personality": json_data.get("personality").cloned().unwrap_or(json!("")),
+        "first_mes": json_data.get("first_mes").cloned().unwrap_or(json!("")),
+        "avatar": "none",
+        "chat": format!("{name} - {}", card::humanized_datetime()),
+        "mes_example": json_data.get("mes_example").cloned().unwrap_or(json!("")),
+        "scenario": json_data.get("scenario").cloned().unwrap_or(json!("")),
+        "create_date": now_iso,
+        "talkativeness": json_data.get("talkativeness").cloned().unwrap_or(json!(0.5)),
+        "creator": json_data.get("creator").cloned().unwrap_or(json!("")),
+        "tags": json_data.get("tags").cloned().unwrap_or(json!("")),
+    })
+}
+
+/// importRisuSprites mirror: data.extensions.risuai additionalAssets +
+/// emotions [label, base64] pairs → characters/<name>/<label>.png.
+fn import_risu_sprites(data: Option<&serde_json::Value>, deps: &card::CardDeps) {
+    let Some(data) = data else { return };
+    let Some(name) = data.get("name").and_then(|n| n.as_str()) else {
+        return;
+    };
+    let Some(risu) = data.get("extensions").and_then(|e| e.get("risuai")) else {
+        return;
+    };
+    let mut images: Vec<(String, String)> = Vec::new();
+    for key in ["additionalAssets", "emotions"] {
+        if let Some(arr) = risu.get(key).and_then(|a| a.as_array()) {
+            for item in arr {
+                if let Some(pair) = item.as_array() {
+                    if pair.len() == 2 {
+                        let label = pair[0].as_str().unwrap_or("").to_string();
+                        let b64 = pair[1].as_str().unwrap_or("").to_string();
+                        if !label.is_empty() {
+                            images.push((label, b64));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if images.is_empty() {
+        return;
+    }
+    let safe_name = card::sanitize_filename(name);
+    if safe_name.is_empty() {
+        return;
+    }
+    let sprites_dir = deps.characters_dir.join(&safe_name);
+    if sprites_dir.exists() && !sprites_dir.is_dir() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(&sprites_dir);
+    let existing: Vec<String> = std::fs::read_dir(&sprites_dir)
+        .map(|rd| {
+            rd.filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    use base64::Engine;
+    for (label, b64) in images {
+        if existing.iter().any(|f| {
+            std::path::Path::new(f)
+                .file_stem()
+                .map(|s| s.to_string_lossy() == label)
+                .unwrap_or(false)
+        }) {
+            continue; // same-label sprite exists: skip
+        }
+        let filename = format!("{}.png", card::sanitize_filename(&label));
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(&b64) {
+            let _ = std::fs::write(sprites_dir.join(filename), bytes);
+        }
+    }
+}
+
+/// Minimal percent-decode for query values (crop JSON).
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("");
+                if let Ok(b) = u8::from_str_radix(hex, 16) {
+                    out.push(b);
+                    i += 3;
+                } else {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
 }
 
 #[cfg(test)]
@@ -1429,5 +2268,54 @@ mod tests {
         assert_eq!(results[0]["date_added"], 0);
         // good.png parses fine alongside
         assert_eq!(results[1]["name"], "Good");
+    }
+}
+
+/// Test-only wrappers around the B2 sync cores (HTTP wiring is exercised via
+/// these; check_auth requires a live session which integration tests don't have).
+#[doc(hidden)]
+pub mod __test {
+    use crate::card::CardDeps;
+
+    pub fn create_sync(
+        form: &serde_json::Value,
+        ch_name: &str,
+        upload: Option<&[u8]>,
+        crop: Option<crate::avatar::Crop>,
+        deps: &CardDeps,
+        data_root: &std::path::Path,
+    ) -> Result<String, String> {
+        super::create_sync(form, ch_name, upload, crop, deps, data_root)
+    }
+
+    pub fn edit_full_sync(
+        form: &serde_json::Value,
+        avatar_url: &str,
+        upload: Option<&[u8]>,
+        crop: Option<crate::avatar::Crop>,
+        deps: &CardDeps,
+        data_root: &std::path::Path,
+    ) -> Result<(), String> {
+        super::edit_full_sync(form, avatar_url, upload, crop, deps, data_root)
+    }
+
+    pub fn edit_avatar_sync(
+        upload: &[u8],
+        avatar_url: &str,
+        crop: Option<crate::avatar::Crop>,
+        deps: &CardDeps,
+        data_root: &std::path::Path,
+    ) -> Result<(), String> {
+        super::edit_avatar_sync(upload, avatar_url, crop, deps, data_root)
+    }
+
+    pub fn import_sync(
+        upload: &[u8],
+        format: &str,
+        preserved: Option<&str>,
+        deps: &CardDeps,
+        data_root: &std::path::Path,
+    ) -> Result<String, String> {
+        super::import_sync(upload, format, preserved, deps, data_root)
     }
 }
