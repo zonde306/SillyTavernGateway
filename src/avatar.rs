@@ -109,24 +109,42 @@ fn cover_resize(img: &DynamicImage, target_w: u32, target_h: u32) -> DynamicImag
     scaled.crop_imm(x, y, target_w, target_h)
 }
 
-/// Mirror of `getInputImage` + `write` composition:
-/// - Buffer input → parseImageBuffer (decode+crop)
-/// - decode failure → raw file bytes (tryReadImage catch)
-/// Returns the processed PNG bytes ready for chunk splicing.
-pub fn prepare_image_bytes(raw: &[u8], crop: Option<&Crop>) -> Result<Vec<u8>, String> {
+/// Mirror of `getInputImage` for buffer inputs (uploads): decode+crop; on
+/// decode failure the upstream buffer branch falls back to the DEFAULT
+/// avatar image (parseImageBuffer propagates → getInputImage catch →
+/// fs.readFile(DEFAULT_AVATAR_PATH)). The caller supplies the default bytes.
+pub fn prepare_upload_bytes(
+    raw: &[u8],
+    crop: Option<&Crop>,
+    default_avatar: &[u8],
+) -> Result<Vec<u8>, String> {
     match decode(raw) {
         Ok(img) => apply_crop_resize(&img, crop),
         Err(e) => {
-            // tryReadImage catch: unsupported image (APNG) → raw file buffer.
-            // write() will still splice chunks; the image data stays as-is.
+            tracing::warn!("Failed to read image buffer: {e}. Using a fallback image.");
+            // upstream: default avatar goes through parseImageBuffer too
+            // (Buffer.isBuffer(inputFile) branch reads the default file and
+            // decodes it — Jimp.fromBuffer on the default PNG). Mirror: decode
+            // + crop the default avatar; it's a plain PNG so this succeeds.
+            decode(default_avatar)
+                .map_err(|e| format!("default avatar decode failed: {e}"))
+                .and_then(|img| apply_crop_resize(&img, None))
+        }
+    }
+}
+
+/// Mirror of `tryReadImage` for FILE paths (default-avatar source or avatar
+/// files referenced by path): decode failure with a PNG input → raw bytes
+/// passthrough (APNG etc.), write() still splices chunks.
+pub fn prepare_file_bytes(raw: &[u8], crop: Option<&Crop>) -> Result<Vec<u8>, String> {
+    match decode(raw) {
+        Ok(img) => apply_crop_resize(&img, crop),
+        Err(e) => {
             if crop.is_none() && raw.starts_with(&[0x89, b'P', b'N', b'G']) {
+                tracing::warn!("Failed to read image (unsupported/animated): {e}. Using raw file buffer.");
                 Ok(raw.to_vec())
             } else {
-                // crop requested but undecodable: upstream would fall back to
-                // DEFAULT_AVATAR_PATH for buffers... but only on read error,
-                // not decode error (decode error → raw buffer). Keep raw.
-                tracing::warn!("avatar decode failed, passing through raw: {e}");
-                Ok(raw.to_vec())
+                Err(e)
             }
         }
     }
@@ -175,7 +193,7 @@ mod tests {
     fn passthrough_on_undecodable_png_without_crop() {
         // Minimal structurally-valid PNG header with garbage body
         let raw = b"\x89PNG\r\n\x1a\nGARBAGE".to_vec();
-        let out = prepare_image_bytes(&raw, None).unwrap();
+        let out = prepare_file_bytes(&raw, None).unwrap();
         assert_eq!(out, raw);
     }
 }

@@ -123,6 +123,9 @@ phase B).
   failure, single-file stub semantics without retry, toShallow projection
   and lodash-get defaults, cache hit == full parse, corrupt-cache fallback,
   node-persist datum format, ...).
+- 2 multipart e2e proofs (real gateway process + signed session cookies):
+  /create with the exact browser payload shape (empty-file avatar part) →
+  200 + valid PNG; /edit multipart without upload → 200 + card JSON updated.
 - 6 B2 tests: create (default avatar + card chunks), create with upload+crop
   (512×768 want_resize), edit-avatar (image replaced, card data survives),
   import png v2 roundtrip, import yaml, edit-full JSON branch (chunk surgery

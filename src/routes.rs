@@ -515,18 +515,19 @@ fn read_card_raw(file_path: &std::path::Path) -> Result<String, String> {
     png::extract_card_json(&chunks)
 }
 
-/// Write raw card JSON back via chunk surgery + disk cache prune (shared by
+/// Write raw card JSON back via chunk surgery (shared by
 /// B1 handlers; mirrors write() semantics).
 fn write_card_raw(
     file_path: &std::path::Path,
     card_json: &str,
-    data_root: &std::path::Path,
+    _data_root: &std::path::Path,
 ) -> Result<(), String> {
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(card_json.as_bytes());
     let new_chunk = png::encode_text_chunk("chara", &b64);
     png::write_card_to_png(file_path, &[new_chunk]).map_err(|e| e.to_string())?;
-    disk_cache::DiskCache::new(data_root).prune();
+    // (cache prune removed: node-persist never prunes on write; pruning 6k
+    // entries costs ~18s sync IO and hung every create/edit)
     Ok(())
 }
 
@@ -854,10 +855,10 @@ fn export_sync(
 
 /// One parsed multipart part set (multer `.single('avatar')` semantics:
 /// fields into body, file into request.file).
-struct MultipartUpload {
-    fields: Vec<(String, String)>,
-    file_bytes: Option<Vec<u8>>,
-    file_name: Option<String>,
+pub struct MultipartUpload {
+    pub fields: Vec<(String, String)>,
+    pub file_bytes: Option<Vec<u8>>,
+    pub file_name: Option<String>,
 }
 
 /// Decode a multipart/form-data body. Mirrors multer + multerMonkeyPatch
@@ -865,7 +866,9 @@ struct MultipartUpload {
 /// needed for naming).
 async fn parse_multipart(content_type: &str, body: Body) -> Result<MultipartUpload, String> {
     let stream = body.into_data_stream();
-    let mut m = multer::Multipart::new(stream, content_type.to_string());
+    let boundary =
+        multer::parse_boundary(content_type).map_err(|e| format!("multipart boundary: {e}"))?;
+    let mut m = multer::Multipart::new(stream, boundary);
     let mut out = MultipartUpload {
         fields: Vec::new(),
         file_bytes: None,
@@ -991,6 +994,7 @@ fn write_card_bytes(
     std::fs::write(&out_path, &image_bytes).map_err(|e| format!("image write: {e}"))?;
     png::write_card_to_png(&out_path, &chunks).map_err(|e| e.to_string())?;
     Ok(())
+    // (no prune: see write_card_raw comment)
 }
 
 /// writeCharacterData(DEFAULT_AVATAR_PATH, ...) — splice into a copy of
@@ -1025,7 +1029,10 @@ fn write_default_avatar_card(
         }
     }
     let raw = raw.ok_or_else(|| "default avatar missing: ./public/img/ai4.png".to_string())?;
-    write_card_bytes(raw, card_json, output_file, deps)
+    // upstream: default avatar is read via getInputImage's buffer branch →
+    // parseImageBuffer → decode+crop(None)=re-encode. Mirror with decode+encode.
+    let prepared = avatar::prepare_upload_bytes(&raw, None, &raw)?;
+    write_card_bytes(prepared, card_json, output_file, deps)
 }
 
 /// Crop query parameter parser (`tryParse(request.query.crop)`).
@@ -1141,12 +1148,39 @@ fn create_sync(
             write_default_avatar_card(data_root, &card_json, &internal_name, deps)?;
         }
         Some(bytes) => {
-            let prepared = avatar::prepare_image_bytes(bytes, crop.as_ref())?;
+            // upstream: undecodable upload → DEFAULT_AVATAR_PATH fallback
+            let default_raw = read_default_avatar_bytes(data_root)?;
+            let prepared = avatar::prepare_upload_bytes(bytes, crop.as_ref(), &default_raw)?;
             write_card_bytes(prepared, &card_json, &internal_name, deps)?;
         }
     }
-    disk_cache::DiskCache::new(data_root).prune();
+    // NOTE: no cache prune here. node-persist never prunes on write; the
+    // mtime-keyed lookup naturally ignores stale entries, and Node writes
+    // fresh entries after its own writes. Pruning 6k entries costs ~18s of
+    // sync file IO and made every create/edit hang.
     Ok(avatar_name)
+}
+
+/// Read DEFAULT_AVATAR_PATH (public/img/ai4.png) with the same path search
+/// as write_default_avatar_card.
+fn read_default_avatar_bytes(data_root: &std::path::Path) -> Result<Vec<u8>, String> {
+    let mut candidates = vec![
+        std::path::PathBuf::from("./public/img/ai4.png"),
+        data_root.join("../public/img/ai4.png"),
+    ];
+    for root in [Some(data_root.to_path_buf()), std::env::current_dir().ok()] {
+        let mut cur = root;
+        while let Some(dir) = cur {
+            candidates.push(dir.join("public/img/ai4.png"));
+            cur = dir.parent().map(|p| p.to_path_buf());
+        }
+    }
+    for c in &candidates {
+        if let Ok(bytes) = std::fs::read(c) {
+            return Ok(bytes);
+        }
+    }
+    Err("default avatar missing: ./public/img/ai4.png".to_string())
 }
 
 /// POST /api/characters/edit — full handler: JSON (chunk surgery) and
@@ -1255,9 +1289,11 @@ fn edit_full_sync(
         }
         Some(bytes) => {
             invalidate_avatar_thumbnail(deps, avatar_url);
-            let prepared = avatar::prepare_image_bytes(bytes, crop.as_ref())?;
+            let default_raw = read_default_avatar_bytes(data_root)?;
+            let prepared = avatar::prepare_upload_bytes(bytes, crop.as_ref(), &default_raw)?;
             write_card_bytes(prepared, &card_json, &target_file, deps)?;
-            disk_cache::DiskCache::new(data_root).prune();
+            // (cache prune removed: node-persist never prunes on write; pruning 6k
+            // entries costs ~18s sync IO and hung every create/edit)
             Ok(())
         }
     }
@@ -1290,7 +1326,10 @@ async fn characters_edit_avatar(
     };
     let mp = match parse_multipart(&ct, axum::body::Body::from(body_bytes)).await {
         Ok(m) => m,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        Err(e) => {
+            tracing::warn!("edit-avatar: multipart parse failed: {e}");
+            return StatusCode::BAD_REQUEST.into_response();
+        }
     };
     let fields = mp.fields.clone();
     let upload = match mp.file_bytes {
@@ -1345,10 +1384,12 @@ fn edit_avatar_sync(
     let data = read_card_raw(&character_path)?;
 
     invalidate_avatar_thumbnail(deps, avatar_url);
-    let prepared = avatar::prepare_image_bytes(upload, crop.as_ref())?;
+    let default_raw = read_default_avatar_bytes(data_root)?;
+    let prepared = avatar::prepare_upload_bytes(upload, crop.as_ref(), &default_raw)?;
     let file_name = avatar_url.replace(".png", "");
     write_card_bytes(prepared, &data, &file_name, deps)?;
-    disk_cache::DiskCache::new(data_root).prune();
+    // (cache prune removed: node-persist never prunes on write; pruning 6k
+    // entries costs ~18s sync IO and hung every create/edit)
     Ok(())
 }
 
@@ -1390,7 +1431,10 @@ async fn characters_import(State(state): State<Arc<AppState>>, req: Request<Body
     };
     let mp = match parse_multipart(&ct, axum::body::Body::from(body_bytes)).await {
         Ok(m) => m,
-        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+        Err(e) => {
+            tracing::warn!("import: multipart parse failed: {e}");
+            return StatusCode::BAD_REQUEST.into_response();
+        }
     };
     let fields = mp.fields.clone();
     let upload = match mp.file_bytes {
@@ -1501,9 +1545,10 @@ fn import_sync(
                 card::read_from_v2(&mut json_data);
                 card::set_path_value(&mut json_data, "create_date", json!(now_iso));
                 let char_json = serde_json::to_string(&json_data).map_err(|e| e.to_string())?;
-                let prepared = avatar::prepare_image_bytes(upload, None)?;
+                let prepared = avatar::prepare_file_bytes(upload, None)?;
                 write_card_bytes(prepared, &char_json, &png_name, deps)?;
-                disk_cache::DiskCache::new(data_root).prune();
+                // (cache prune removed: node-persist never prunes on write; pruning 6k
+                // entries costs ~18s sync IO and hung every create/edit)
                 Ok(png_name)
             } else if json_data.get("name").map(|s| !s.is_null()).unwrap_or(false) {
                 // V1 card
@@ -1513,9 +1558,10 @@ fn import_sync(
                 }
                 let char = card::convert_to_v2(&v1_to_card(&json_data, &now_iso));
                 let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
-                let prepared = avatar::prepare_image_bytes(upload, None)?;
+                let prepared = avatar::prepare_file_bytes(upload, None)?;
                 write_card_bytes(prepared, &char_json, &png_name, deps)?;
-                disk_cache::DiskCache::new(data_root).prune();
+                // (cache prune removed: node-persist never prunes on write; pruning 6k
+                // entries costs ~18s sync IO and hung every create/edit)
                 Ok(png_name)
             } else {
                 Ok(String::new())
@@ -1551,7 +1597,8 @@ fn import_sync(
                     .unwrap_or_else(|| card::get_png_name(&name, &deps.characters_dir));
                 let char_json = serde_json::to_string(&json_data).map_err(|e| e.to_string())?;
                 write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
-                disk_cache::DiskCache::new(data_root).prune();
+                // (cache prune removed: node-persist never prunes on write; pruning 6k
+                // entries costs ~18s sync IO and hung every create/edit)
                 Ok(png_name)
             } else if json_data.get("name").map(|s| !s.is_null()).unwrap_or(false) {
                 let name = card::sanitize_filename(
@@ -1568,7 +1615,8 @@ fn import_sync(
                 let char = card::convert_to_v2(&v1_to_card(&json_data, &now_iso));
                 let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
                 write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
-                disk_cache::DiskCache::new(data_root).prune();
+                // (cache prune removed: node-persist never prunes on write; pruning 6k
+                // entries costs ~18s sync IO and hung every create/edit)
                 Ok(png_name)
             } else if json_data
                 .get("char_name")
@@ -1654,7 +1702,8 @@ fn import_sync(
                 let char = card::convert_to_v2(&char);
                 let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
                 write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
-                disk_cache::DiskCache::new(data_root).prune();
+                // (cache prune removed: node-persist never prunes on write; pruning 6k
+                // entries costs ~18s sync IO and hung every create/edit)
                 Ok(png_name)
             } else {
                 Ok(String::new())
@@ -1709,7 +1758,8 @@ fn import_sync(
             let char = card::convert_to_v2(&char);
             let char_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
             write_default_avatar_card(data_root, &char_json, &png_name, deps)?;
-            disk_cache::DiskCache::new(data_root).prune();
+            // (cache prune removed: node-persist never prunes on write; pruning 6k
+            // entries costs ~18s sync IO and hung every create/edit)
             Ok(png_name)
         }
         _ => Err(format!("Unsupported format: {format}")),
@@ -2275,6 +2325,12 @@ mod tests {
 /// these; check_auth requires a live session which integration tests don't have).
 #[doc(hidden)]
 pub mod __test {
+    pub async fn parse_multipart(
+        content_type: &str,
+        body: axum::body::Body,
+    ) -> Result<super::MultipartUpload, String> {
+        super::parse_multipart(content_type, body).await
+    }
     use crate::card::CardDeps;
 
     pub fn create_sync(
