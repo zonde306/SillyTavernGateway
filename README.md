@@ -70,8 +70,18 @@ gateway:
   routes:
     "characters/all": local       # local = Rust, forward = proxy to Node
     "characters/get": local
-    "characters/edit": local
+    "characters/edit": local      # JSON + multipart/crop branches
+    "characters/edit-attribute": local
+    "characters/edit-avatar": local
+    "characters/rename": local
+    "characters/export": local
+    "characters/create": local
+    "characters/import": local    # png/json/yaml; charx/byaf forward
+    "thumbnail": local
 ```
+
+All character PNG paths run through chunk surgery or the native `image`
+crate — Node never decodes a character image again.
 
 ## Auth replication (verified against upstream sources)
 
@@ -126,6 +136,9 @@ phase B).
 - 2 multipart e2e proofs (real gateway process + signed session cookies):
   /create with the exact browser payload shape (empty-file avatar part) →
   200 + valid PNG; /edit multipart without upload → 200 + card JSON updated.
+- 2 multipart empty-filename tests + 1 edit-preserves-image regression
+  (multer `!filename → discard` mirror: /edit favoriting no longer resets
+  the avatar to the default image).
 - 6 B2 tests: create (default avatar + card chunks), create with upload+crop
   (512×768 want_resize), edit-avatar (image replaced, card data survives),
   import png v2 roundtrip, import yaml, edit-full JSON branch (chunk surgery

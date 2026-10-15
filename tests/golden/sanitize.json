@@ -1,0 +1,19 @@
+{
+  "seraphina.png": "seraphina.png",
+  "My Card v2.png": "My Card v2.png",
+  "..": "",
+  "CON": "",
+  "con.png": "",
+  "COM1.json": "",
+  "name with  spaces.png": "name with  spaces.png",
+  "trailing... ": "trailing",
+  "  .  ": "",
+  "a/b": "ab",
+  "a\b": "a",
+  "a:b*c?": "abc",
+  "quote\"name": "quotename",
+  "pipe|less": "pipeless",
+  "less<more>": "lessmore",
+  "unicode é😀.png": "unicode é😀.png",
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}

@@ -881,12 +881,26 @@ async fn parse_multipart(content_type: &str, body: Body) -> Result<MultipartUplo
     {
         let name = field.name().unwrap_or("").to_string();
         if name == "avatar" {
-            out.file_name = field.file_name().map(|s| s.to_string());
-            let bytes = field
-                .bytes()
-                .await
-                .map_err(|e| format!("multipart read: {e}"))?;
-            out.file_bytes = Some(bytes.to_vec());
+            // multer line 167: `if (!filename) return fileStream.resume()` —
+            // a file part with EMPTY/absent filename is discarded, leaving
+            // request.file undefined (JSON branch upstream). Mirror exactly,
+            // otherwise every /edit without a new avatar would replace the
+            // character image with the default avatar.
+            let has_filename = field
+                .file_name()
+                .map(|f| !f.is_empty())
+                .unwrap_or(false);
+            if has_filename {
+                out.file_name = field.file_name().map(|s| s.to_string());
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| format!("multipart read: {e}"))?;
+                out.file_bytes = Some(bytes.to_vec());
+            } else {
+                // drain and ignore: not an upload
+                let _ = field.bytes().await;
+            }
         } else {
             let text = field
                 .text()
