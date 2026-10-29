@@ -515,6 +515,24 @@ fn read_card_raw(file_path: &std::path::Path) -> Result<String, String> {
     png::extract_card_json(&chunks)
 }
 
+/// Chunk bytes for a freshly built card: chara (v2) + ccv3 (v3) tEXt, as
+/// character-card-parser.js#write does for all writeCharacterData paths.
+fn card_chunks(card_json: &str) -> Vec<Vec<u8>> {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(card_json.as_bytes());
+    let mut chunks = vec![png::encode_text_chunk("chara", &b64)];
+    if let Ok(mut v3) = serde_json::from_str::<serde_json::Value>(card_json) {
+        if let Some(o) = v3.as_object_mut() {
+            o.insert("spec".into(), json!("chara_card_v3"));
+            o.insert("spec_version".into(), json!("3.0"));
+        }
+        let v3_json = serde_json::to_string(&v3).unwrap_or_default();
+        let v3_b64 = base64::engine::general_purpose::STANDARD.encode(v3_json.as_bytes());
+        chunks.push(png::encode_text_chunk("ccv3", &v3_b64));
+    }
+    chunks
+}
+
 /// Write raw card JSON back via chunk surgery (shared by
 /// B1 handlers; mirrors write() semantics).
 fn write_card_raw(
@@ -522,10 +540,8 @@ fn write_card_raw(
     card_json: &str,
     _data_root: &std::path::Path,
 ) -> Result<(), String> {
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(card_json.as_bytes());
-    let new_chunk = png::encode_text_chunk("chara", &b64);
-    png::write_card_to_png(file_path, &[new_chunk]).map_err(|e| e.to_string())?;
+    let chunks = card_chunks(card_json);
+    png::write_card_to_png(file_path, &chunks).map_err(|e| e.to_string())?;
     // (cache prune removed: node-persist never prunes on write; pruning 6k
     // entries costs ~18s sync IO and hung every create/edit)
     Ok(())
@@ -823,13 +839,11 @@ fn export_sync(
             card::unset_private_fields(&mut mutated);
             let mutated_json = serde_json::to_string(&mutated).map_err(|e| e.to_string())?;
             // write(rawBuffer, mutatedData): full chunk replacement
-            use base64::Engine;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(mutated_json.as_bytes());
-            let new_chunk = png::encode_text_chunk("chara", &b64);
+            let new_chunks = card_chunks(&mutated_json);
             // Surgery to a temp copy so the original stays untouched
             // (upstream writes the mutated buffer straight to the response).
             let tmp_out = filename.with_extension("export.tmp");
-            png::write_card_to_png_from_to(filename, &tmp_out, &[new_chunk])
+            png::write_card_to_png_from_to(filename, &tmp_out, &new_chunks)
                 .map_err(|e| e.to_string())?;
             let bytes = std::fs::read(&tmp_out).map_err(|e| e.to_string())?;
             let _ = std::fs::remove_file(&tmp_out);
@@ -886,10 +900,7 @@ async fn parse_multipart(content_type: &str, body: Body) -> Result<MultipartUplo
             // request.file undefined (JSON branch upstream). Mirror exactly,
             // otherwise every /edit without a new avatar would replace the
             // character image with the default avatar.
-            let has_filename = field
-                .file_name()
-                .map(|f| !f.is_empty())
-                .unwrap_or(false);
+            let has_filename = field.file_name().map(|f| !f.is_empty()).unwrap_or(false);
             if has_filename {
                 out.file_name = field.file_name().map(|s| s.to_string());
                 let bytes = field
@@ -910,6 +921,33 @@ async fn parse_multipart(content_type: &str, body: Body) -> Result<MultipartUplo
         }
     }
     Ok(out)
+}
+
+/// Turn parsed multipart fields into a JSON object, mirroring multer's
+/// behavior on duplicate field names: the first value is stored as a string,
+/// and subsequent values with the same field name are collected into an array.
+/// (Critical for fields like `alternate_greetings` where the frontend submits
+/// multiple parts with the same field name).
+fn multipart_fields_to_map(
+    fields: &[(String, String)],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut obj = serde_json::Map::new();
+    for (k, v) in fields {
+        match obj.get_mut(k) {
+            Some(existing) => {
+                if let Some(arr) = existing.as_array_mut() {
+                    arr.push(json!(v));
+                } else {
+                    let prev = existing.take();
+                    *existing = json!([prev, v]);
+                }
+            }
+            None => {
+                obj.insert(k.clone(), json!(v));
+            }
+        }
+    }
+    obj
 }
 
 /// Mirror of charaFormatData (the /create + /edit entry point): json_data
@@ -972,24 +1010,6 @@ fn chara_format_data_full(data: &serde_json::Value, deps: &card::CardDeps) -> St
         }
     }
     serde_json::to_string(&char).unwrap_or_default()
-}
-
-/// Chunk bytes for a freshly built card: chara (v2) + ccv3 (v3) tEXt, as
-/// character-card-parser.js#write does for all writeCharacterData paths.
-fn card_chunks(card_json: &str) -> Vec<Vec<u8>> {
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(card_json.as_bytes());
-    let mut chunks = vec![png::encode_text_chunk("chara", &b64)];
-    if let Ok(mut v3) = serde_json::from_str::<serde_json::Value>(card_json) {
-        if let Some(o) = v3.as_object_mut() {
-            o.insert("spec".into(), json!("chara_card_v3"));
-            o.insert("spec_version".into(), json!("3.0"));
-        }
-        let v3_json = serde_json::to_string(&v3).unwrap_or_default();
-        let v3_b64 = base64::engine::general_purpose::STANDARD.encode(v3_json.as_bytes());
-        chunks.push(png::encode_text_chunk("ccv3", &v3_b64));
-    }
-    chunks
 }
 
 /// Splice card chunks into image bytes and write characters/<output>.png.
@@ -1090,10 +1110,7 @@ async fn characters_create(State(state): State<Arc<AppState>>, req: Request<Body
             Ok(m) => m,
             Err(_) => return StatusCode::BAD_REQUEST.into_response(),
         };
-        let mut obj = serde_json::Map::new();
-        for (k, v) in &mp.fields {
-            obj.insert(k.clone(), json!(v));
-        }
+        let obj = multipart_fields_to_map(&mp.fields);
         (serde_json::Value::Object(obj), mp.file_bytes)
     } else {
         match serde_json::from_slice::<serde_json::Value>(&body_bytes) {
@@ -1226,10 +1243,7 @@ async fn characters_edit_full(State(state): State<Arc<AppState>>, req: Request<B
             Ok(m) => m,
             Err(_) => return StatusCode::BAD_REQUEST.into_response(),
         };
-        let mut obj = serde_json::Map::new();
-        for (k, v) in &mp.fields {
-            obj.insert(k.clone(), json!(v));
-        }
+        let obj = multipart_fields_to_map(&mp.fields);
         (serde_json::Value::Object(obj), mp.file_bytes)
     } else {
         match serde_json::from_slice::<serde_json::Value>(&body_bytes) {
@@ -2344,6 +2358,12 @@ pub mod __test {
         body: axum::body::Body,
     ) -> Result<super::MultipartUpload, String> {
         super::parse_multipart(content_type, body).await
+    }
+
+    pub fn multipart_fields_to_map(
+        fields: &[(String, String)],
+    ) -> serde_json::Map<String, serde_json::Value> {
+        super::multipart_fields_to_map(fields)
     }
     use crate::card::CardDeps;
 

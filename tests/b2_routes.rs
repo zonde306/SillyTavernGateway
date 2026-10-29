@@ -408,3 +408,138 @@ async fn edit_with_empty_avatar_part_preserves_image() {
         "avatar must remain the original 4x4 image, not the default avatar"
     );
 }
+
+/// Regression test: /edit multipart with multiple `alternate_greetings` fields
+/// must preserve ALL alternate first messages (not overwrite earlier ones, leaving
+/// only 1 primary + 1 alternate greeting).
+#[tokio::test]
+async fn edit_multipart_multiple_alternate_greetings_preserved() {
+    use st_gateway::routes::__test::{edit_full_sync, multipart_fields_to_map, parse_multipart};
+
+    let dir = tempfile::tempdir().unwrap();
+    let deps = st_gateway::card::CardDeps {
+        characters_dir: dir.path().join("default-user/characters"),
+        chats_dir: dir.path().join("default-user/chats"),
+        worlds_dir: dir.path().join("default-user/worlds"),
+    };
+    std::fs::create_dir_all(&deps.characters_dir).unwrap();
+    let data_root = dir.path().to_path_buf();
+
+    // Existing card: real PNG + chara chunk with initial greetings
+    let base = tiny_png();
+    let card = serde_json::json!({
+        "spec": "chara_card_v2", "spec_version": "2.0",
+        "name": "MultiFM", "description": "desc",
+        "data": {
+            "name": "MultiFM",
+            "description": "desc",
+            "first_mes": "Primary message",
+            "alternate_greetings": ["Initial alt 1", "Initial alt 2"]
+        }
+    })
+    .to_string();
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(card.as_bytes());
+    let src = deps.characters_dir.join("multifm.src.png");
+    std::fs::write(&src, &base).unwrap();
+    let chunk = st_gateway::png::encode_text_chunk("chara", &b64);
+    st_gateway::png::write_card_to_png(&src, &[chunk]).unwrap();
+    std::fs::rename(&src, deps.characters_dir.join("multifm.png")).unwrap();
+
+    // Construct multipart payload exactly as the browser frontend sends it on /edit:
+    // multiple form parts with the identical name "alternate_greetings".
+    let b = "----WebKitFormBoundaryMultiFM";
+    let crlf = "\r\n";
+    let mut payload = String::new();
+
+    let fields = [
+        ("ch_name", "MultiFM"),
+        ("avatar_url", "multifm.png"),
+        ("description", "updated desc"),
+        ("first_mes", "Primary message"),
+        ("alternate_greetings", "Alt greeting 1"),
+        ("alternate_greetings", "Alt greeting 2"),
+        ("alternate_greetings", "Alt greeting 3"),
+    ];
+
+    for (k, v) in fields {
+        payload.push_str(&format!("--{b}{crlf}"));
+        payload.push_str(&format!(
+            "Content-Disposition: form-data; name=\"{k}\"{crlf}{crlf}"
+        ));
+        payload.push_str(&format!("{v}{crlf}"));
+    }
+    // Browser sends empty avatar field when no new file is chosen
+    payload.push_str(&format!("--{b}{crlf}"));
+    payload.push_str(&format!(
+        "Content-Disposition: form-data; name=\"avatar\"; filename=\"\"{crlf}"
+    ));
+    payload.push_str(&format!(
+        "Content-Type: application/octet-stream{crlf}{crlf}"
+    ));
+    payload.push_str(&format!("{crlf}--{b}--{crlf}"));
+
+    let ct = format!("multipart/form-data; boundary={b}");
+    let mp = parse_multipart(&ct, axum::body::Body::from(payload.into_bytes()))
+        .await
+        .unwrap();
+
+    assert!(mp.file_bytes.is_none());
+    let form_map = multipart_fields_to_map(&mp.fields);
+    let form = serde_json::Value::Object(form_map);
+
+    // Verify multipart_fields_to_map preserved all 3 alternate_greetings as an array
+    let alt_greetings = form
+        .get("alternate_greetings")
+        .and_then(|v| v.as_array())
+        .unwrap();
+    assert_eq!(alt_greetings.len(), 3);
+    assert_eq!(alt_greetings[0], "Alt greeting 1");
+    assert_eq!(alt_greetings[1], "Alt greeting 2");
+    assert_eq!(alt_greetings[2], "Alt greeting 3");
+
+    // Execute edit
+    edit_full_sync(&form, "multifm.png", None, None, &deps, &data_root).unwrap();
+
+    // Read back character card from the PNG file
+    let chunks =
+        st_gateway::png::read_text_chunks(&deps.characters_dir.join("multifm.png")).unwrap();
+    let raw = st_gateway::png::extract_card_json(&chunks).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+
+    // Verify primary FM and all 3 alternate greetings survived
+    assert_eq!(parsed["data"]["first_mes"], "Primary message");
+    let saved_alts = parsed["data"]["alternate_greetings"].as_array().unwrap();
+    assert_eq!(
+        saved_alts,
+        &vec![
+            serde_json::json!("Alt greeting 1"),
+            serde_json::json!("Alt greeting 2"),
+            serde_json::json!("Alt greeting 3"),
+        ],
+        "all alternate first messages must be preserved after /edit"
+    );
+}
+
+/// Unit test: multipart_fields_to_map converts repeated fields to arrays
+/// matching Node.js multer semantics, while single fields remain single values.
+#[test]
+fn multipart_fields_to_map_duplicates_to_array() {
+    use st_gateway::routes::__test::multipart_fields_to_map;
+
+    let fields = vec![
+        ("name".to_string(), "Alice".to_string()),
+        ("tag".to_string(), "t1".to_string()),
+        ("tag".to_string(), "t2".to_string()),
+        ("tag".to_string(), "t3".to_string()),
+        ("single".to_string(), "val".to_string()),
+    ];
+
+    let map = multipart_fields_to_map(&fields);
+    assert_eq!(map.get("name").unwrap(), &serde_json::json!("Alice"));
+    assert_eq!(map.get("single").unwrap(), &serde_json::json!("val"));
+    assert_eq!(
+        map.get("tag").unwrap(),
+        &serde_json::json!(["t1", "t2", "t3"])
+    );
+}
