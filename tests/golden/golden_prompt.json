@@ -1,0 +1,4183 @@
+{
+  "postProcessPrompt": [
+    {
+      "case": "plain system/user/assistant",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ]
+    },
+    {
+      "case": "plain system/user/assistant",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ]
+    },
+    {
+      "case": "plain system/user/assistant",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ]
+    },
+    {
+      "case": "plain system/user/assistant",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ]
+    },
+    {
+      "case": "plain system/user/assistant",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ]
+    },
+    {
+      "case": "plain system/user/assistant",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ]
+    },
+    {
+      "case": "plain system/user/assistant",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        },
+        {
+          "role": "assistant",
+          "content": "hello"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "sys\n\nUser: hi\n\nSeraphina: hello"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a\n\nb"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a\n\nb"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a\n\nb"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a\n\nb"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a\n\nb"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a\n\nb"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ]
+    },
+    {
+      "case": "consecutive same role squashing",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "b"
+        },
+        {
+          "role": "assistant",
+          "content": "c"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "sys\n\nUser: a\n\nUser: b\n\nSeraphina: c"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "merge",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: hi"
+        },
+        {
+          "role": "user",
+          "content": "User: hey"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: hi"
+        },
+        {
+          "role": "user",
+          "content": "User: hey"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "semi",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: hi"
+        },
+        {
+          "role": "user",
+          "content": "User: hey"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: hi"
+        },
+        {
+          "role": "user",
+          "content": "User: hey"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "strict",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "Seraphina: hi"
+        },
+        {
+          "role": "user",
+          "content": "User: hey"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "Seraphina: hi"
+        },
+        {
+          "role": "user",
+          "content": "User: hey"
+        }
+      ]
+    },
+    {
+      "case": "named messages get prefixed twice",
+      "type": "single",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "hi"
+        },
+        {
+          "role": "user",
+          "name": "User",
+          "content": "hey"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Seraphina: hi\n\nUser: hey"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Seraphina: yo\n\nUser: me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Seraphina: yo\n\nUser: me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Seraphina: yo\n\nUser: me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Seraphina: yo\n\nUser: me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Seraphina: yo\n\nUser: me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Seraphina: yo\n\nUser: me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "example_assistant / example_user prefixing",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "yo"
+        },
+        {
+          "role": "system",
+          "name": "example_user",
+          "content": "me"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Seraphina: yo\n\nUser: me\n\nUser: q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ]
+    },
+    {
+      "case": "group name already present is not duplicated",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "name": "example_assistant",
+          "content": "Alice: already"
+        },
+        {
+          "role": "user",
+          "content": "q"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Alice: already\n\nUser: q"
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "media parts survive as arrays",
+      "type": "single",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "User: look"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "multiple media parts and text interleaved",
+      "type": "single",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "User: a"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,AAA"
+              }
+            },
+            {
+              "type": "text",
+              "text": "b"
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/png;base64,BBB"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "\n\nx"
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "\n\nx"
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "\n\nx"
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "\n\nx"
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "\n\nx"
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "\n\nx"
+        }
+      ]
+    },
+    {
+      "case": "empty content becomes empty string and squashes",
+      "type": "single",
+      "input": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "User: \n\nUser: x"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "merge",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "merge_tools",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "semi",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "semi_tools",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "strict",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "strict_tools",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "empty messages gets placeholder",
+      "type": "single",
+      "input": [],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": ""
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ]
+    },
+    {
+      "case": "missing content key",
+      "type": "single",
+      "input": [
+        {
+          "role": "user"
+        },
+        {
+          "role": "assistant",
+          "content": "x"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "User: \n\nSeraphina: x"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nresult"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nresult"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nresult"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages demoted when tools disabled",
+      "type": "single",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "User: q\n\nUser: result\n\nSeraphina: a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nresult"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nresult"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nresult"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "tool messages kept when tools enabled",
+      "type": "single",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content": "result"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "User: q\n\nUser: result\n\nSeraphina: a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "merge",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "semi",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nmid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nmid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "strict",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nmid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "q\n\nmid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: mid-prompt system demoted",
+      "type": "single",
+      "input": [
+        {
+          "role": "user",
+          "content": "q"
+        },
+        {
+          "role": "system",
+          "content": "mid"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "User: q\n\nmid\n\nSeraphina: a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        }
+      ]
+    },
+    {
+      "case": "strict: system-only prompt gets placeholder",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "sys"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ]
+    },
+    {
+      "case": "strict: system followed by assistant gets placeholder",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "sys\n\nSeraphina: a"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "merge",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "semi",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "strict",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "strict: leading assistant gets placeholder",
+      "type": "single",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Seraphina: a\n\nUser: u"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "merge",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "semi",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "strict",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ]
+    },
+    {
+      "case": "single: everything becomes one user message",
+      "type": "single",
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "assistant",
+          "content": "yo"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "sys\n\nSeraphina: yo\n\nUser: hi"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "merge",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "semi",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "strict",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: named assistant",
+      "type": "single",
+      "input": [
+        {
+          "role": "assistant",
+          "name": "Seraphina",
+          "content": "yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Seraphina: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "merge",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "semi",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "strict",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "single: group name already present",
+      "type": "single",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "Alice: yo"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Alice: yo"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "merge",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "merge_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "semi",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "semi_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "strict",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "a"
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "strict_tools",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "[Start a new chat]"
+        },
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ]
+    },
+    {
+      "case": "tool_calls stripped when tools disabled",
+      "type": "single",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "a",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "type": "function",
+              "function": {
+                "name": "f",
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "u"
+        }
+      ],
+      "output": [
+        {
+          "role": "user",
+          "content": "Seraphina: a\n\nUser: u"
+        }
+      ]
+    }
+  ],
+  "convertTextCompletionPrompt": [
+    {
+      "input": [
+        {
+          "role": "system",
+          "content": "sys"
+        },
+        {
+          "role": "system",
+          "name": "narrator",
+          "content": "n"
+        },
+        {
+          "role": "user",
+          "content": "hi"
+        }
+      ],
+      "output": "System: sys\nnarrator: n\nuser: hi\nassistant:"
+    },
+    {
+      "input": "raw text",
+      "output": "raw text"
+    },
+    {
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "x"
+            }
+          ]
+        }
+      ],
+      "output": "user: [object Object]\nassistant:"
+    }
+  ],
+  "embedOpenRouterMedia": [
+    {
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "data:audio/wav;base64,QUJD"
+              }
+            }
+          ]
+        }
+      ],
+      "opts": {
+        "audio": true,
+        "video": true
+      },
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "a"
+            },
+            {
+              "type": "input_audio",
+              "input_audio": {
+                "format": "wav",
+                "data": "QUJD"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "data:audio/mpeg;base64,QUJD"
+              }
+            }
+          ]
+        }
+      ],
+      "opts": {
+        "audio": true,
+        "video": false
+      },
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "input_audio",
+              "input_audio": {
+                "format": "mp3",
+                "data": "QUJD"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "https://example.com/a.mp3"
+              }
+            }
+          ]
+        }
+      ],
+      "opts": {
+        "audio": true,
+        "video": true
+      },
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "audio_url",
+              "audio_url": {
+                "url": "https://example.com/a.mp3"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "video_url",
+              "video_url": {
+                "url": "data:video/mp4;base64,QUJD"
+              }
+            }
+          ]
+        }
+      ],
+      "opts": {
+        "audio": false,
+        "video": true
+      },
+      "output": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "video_url",
+              "video_url": {
+                "url": "data:video/mp4;base64,QUJD"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "addOpenRouterSignatures": [
+    {
+      "model": "openai/gpt-5",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "x",
+          "signature": "sig1",
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "signature": "sig2"
+            }
+          ]
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "x",
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function"
+            }
+          ],
+          "reasoning_details": [
+            {
+              "index": 0,
+              "id": "signature-0",
+              "type": "reasoning.encrypted",
+              "data": "sig1",
+              "format": "openai-responses-v1"
+            },
+            {
+              "index": 1,
+              "id": "call_1",
+              "type": "reasoning.encrypted",
+              "data": "sig2",
+              "format": "openai-responses-v1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "model": "anthropic/claude-sonnet-4",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "x",
+          "signature": "sig1"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "x",
+          "reasoning_details": [
+            {
+              "index": 0,
+              "id": "signature-0",
+              "type": "reasoning.encrypted",
+              "data": "sig1",
+              "format": "anthropic-claude-v1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "model": "some/other-model",
+      "input": [
+        {
+          "role": "assistant",
+          "content": "x",
+          "signature": "sig1"
+        }
+      ],
+      "output": [
+        {
+          "role": "assistant",
+          "content": "x",
+          "reasoning_details": [
+            {
+              "index": 0,
+              "id": "signature-0",
+              "type": "reasoning.encrypted",
+              "data": "sig1",
+              "format": "unknown"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

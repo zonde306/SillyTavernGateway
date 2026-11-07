@@ -17,6 +17,7 @@ fn test_app_state(dir: &tempfile::TempDir, dims: Option<Vec<u32>>) -> Arc<AppSta
     );
     let cfg = config::ResolvedConfig::from_text(&cfg_text, dir.path().to_path_buf());
     Arc::new(AppState {
+        generate_limiter: Arc::new(st_gateway::chat_completions::GenerateLimiter::default()),
         thumb_limiter: Arc::new(ThumbLimiter::new(cfg.thumb_concurrency())),
         disk_cache: st_gateway::disk_cache::DiskCache::new(&cfg.data_root),
         cfg: Arc::new(cfg),
@@ -175,7 +176,7 @@ async fn concurrency_permits_derive_from_batch_bytes() {
     assert_eq!(cfg.thumb_concurrency(), 16);
 
     let cfg = config::ResolvedConfig::from_text("", std::path::PathBuf::from("."));
-    assert_eq!(cfg.thumb_concurrency(), 32.min(16)); // 256MiB default → 16
+    assert_eq!(cfg.thumb_concurrency(), 16); // 256MiB default → 16
 }
 
 #[tokio::test]

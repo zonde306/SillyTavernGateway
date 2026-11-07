@@ -78,10 +78,67 @@ gateway:
     "characters/create": local
     "characters/import": local    # png/json/yaml; charx/byaf forward
     "thumbnail": local
+    "backends/chat-completions/generate": local
+  # batch_bytes: 268435456      # size budget for characters/all + decode/generation gates
+  # heartbeat_secs: 15          # idle keep-alive for generations, 0 = off
 ```
 
 All character PNG paths run through chunk surgery or the native `image`
 crate — Node never decodes a character image again.
+
+## Chat completions
+
+`POST /api/backends/chat-completions/generate` is generated in Rust for the
+providers upstream implements inline — `openai`, `openrouter`, `custom`,
+`perplexity`, `groq`, `fireworks`, `nanogpt`, `pollinations`, `moonshot`,
+`zai`, `siliconflow`, `workers_ai` (`cometapi` is disabled upstream and
+returns the same 502). Claude, MakerSuite/Vertex, Cohere, DeepSeek, xAI,
+Chutes, MiniMax, Electron Hub and Azure requests are forwarded to Node, so a
+provider ported later keeps working without touching the route.
+
+Body construction mirrors `src/endpoints/backends/chat-completions.js`
+statement for statement — same `bodyParams` per provider, same key order,
+same `undefined`-means-omitted semantics, same `excludeKeysByYaml` /
+`mergeObjectWithYaml` / `flattenSchema` behaviour, and prompt
+post-processing runs through the ported `mergeMessages` (locked against 140
+golden vectors from the real `src/prompt-converters.js`).
+
+Two behaviours differ from upstream on purpose:
+
+**Idle keep-alive.** Providers can think for minutes before the first token;
+nginx `proxy_read_timeout` and CDNs (Cloudflare's ~100 s) drop silent
+connections. The gateway injects bytes that are valid for the protocol the
+provider picked:
+
+| upstream `Content-Type`        | injected while idle               |
+|--------------------------------|-----------------------------------|
+| `text/event-stream`            | `: keep-alive` comment lines      |
+| `application/x-ndjson`, `jsonl`| blank lines                       |
+| `application/json`             | leading space, then blank lines   |
+
+Blank lines are ignored by every line/SSE parser, and leading whitespace is
+ignored by `JSON.parse`. Interval: `gateway.heartbeat_secs` (default 15).
+Responses also carry `Cache-Control: no-cache` and
+`X-Accel-Buffering: no` so nginx does not buffer the stream.
+
+**Priming token.** The first body bytes are written the moment the 200 header
+is produced, before the provider has sent anything — the same token the idle
+timer uses. Cloudflare and friends treat a response that has started flowing
+far more leniently than one that is silent after the header, and some CLIs
+refuse to hand over the connection until a byte arrives. It costs 14 bytes
+and cannot be observed by a client parser.
+
+**Size-weighted admission.** Node kept each request body alive (plus a
+`JSON.stringify` copy) for the whole generation, so concurrent image-heavy
+chats multiplied peak RSS. The gateway charges each generation
+`1 + body/16MiB` permits against a semaphore sized from
+`gateway.batch_bytes` (256 MiB default) and holds the permit until the
+response stream ends. Oversized single requests are still allowed (their cost
+is capped at the whole budget) so nobody is starved — they simply run alone.
+
+Not ported: OpenRouter's live `isOpenRouterModelCacheable` probe (a 5 s
+`GET /models` call) — Gemini prompt caching on OpenRouter therefore follows
+the static allow-list only.
 
 ## Auth replication (verified against upstream sources)
 
@@ -105,7 +162,13 @@ are forwarded).
   `humanizedDateTime`
 - `src/auth.rs` — keygrip/cookie-session/CSRF replication
 - `src/forward.rs` — transparent proxy to Node
-- `src/routes.rs` — `/api/characters/all|get|edit` local handlers + fallback
+- `src/chat_completions.rs` — provider table, request translation, wire
+  protocol detection, size-weighted generation gate
+- `src/heartbeat.rs` — protocol-aware idle keep-alive body wrapper
+- `src/prompt.rs` — mirror of `src/prompt-converters.js`
+- `src/secrets.rs` — `secrets.json` reader (`readSecret` semantics)
+- `src/routes.rs` — `/api/characters/*` and `/api/backends/chat-completions/
+  generate` local handlers + fallback
 - `src/config.rs` — config.yaml loading (`--config` / `ST_GATEWAY_CONFIG` /
   `./config.yaml`)
 
@@ -156,6 +219,23 @@ phase B).
   `tests/golden/golden.json`. Keygrip signatures, tEXt byte layout, PNG
   round-trips, and chunk ordering are compared byte-for-byte.
 
-Regenerate golden vectors after touching `tests/golden/generate.js` or when
-upstream parser behavior changes:
-`node src-rs/tests/golden/generate.js && cd src-rs && cargo test`.
+- 4 prompt golden tests: 140 `postProcessPrompt` vectors (20 cases x 7
+  processing types) plus `convertTextCompletionPrompt`,
+  `embedOpenRouterMedia` and `addOpenRouterSignatures`, generated from the
+  real `src/prompt-converters.js` by
+  `node src-rs/tests/golden/generate_prompt.js`.
+- 13 chat-completions tests: request translation per provider (URL, auth
+  header, key order, omitted `undefined`s, YAML include/exclude),
+  `flattenSchema` inlining and Google key filtering, cometapi parity,
+  HMAC session affinity vs `node:crypto`, protocol detection, gate sizing.
+- 6 heartbeat tests: SSE comments vs NDJSON blank lines vs JSON leading
+  space, split JSON bodies staying parseable, unknown types getting the
+  safest token, 40 MiB passing through intact.
+- `python tests/e2e_generate.py` — end-to-end against the release binary and
+  a fake OpenAI-compatible upstream: request translation, first-byte
+  latency, heartbeats during a 3 s upstream silence, and two 20 MiB
+  generations serialized by the gate at a 32 MiB budget.
+
+Regenerate golden vectors after touching the generator scripts or when
+upstream parser behaviour changes:
+`node src-rs/tests/golden/generate.js && node src-rs/tests/golden/generate_prompt.js && cd src-rs && cargo test`.

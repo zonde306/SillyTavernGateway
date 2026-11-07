@@ -49,6 +49,11 @@ pub struct StConfig {
     pub thumbnails: Option<ThumbnailsSection>,
     /// Gateway-specific section.
     pub gateway: Option<GatewaySection>,
+    /// Unparsed remainder of the file. The chat-completions route mirrors
+    /// upstream `getConfigValue('claude.extendedTTL', ...)` lookups, which can
+    /// hit any section, so keep the raw YAML around.
+    #[serde(flatten)]
+    pub raw: HashMap<String, serde_yaml::Value>,
 }
 
 /// Mirror of ST's `thumbnails:` config section.
@@ -151,6 +156,11 @@ pub struct GatewaySection {
     /// that fail are split in half and retried; single-file failures are
     /// reported as zeroed stubs without retry. Default: 256 MiB.
     pub batch_bytes: Option<u64>,
+    /// Idle keep-alive interval for long-running proxied/streamed responses
+    /// (chat completions). Heartbeats are protocol-aware: SSE comment lines,
+    /// blank lines for NDJSON, leading whitespace for JSON bodies. 0 disables
+    /// heartbeats. Default: 15.
+    pub heartbeat_secs: Option<u64>,
 }
 
 pub struct ResolvedConfig {
@@ -165,6 +175,13 @@ pub struct ResolvedConfig {
 
 fn default_node_port(st_port: Option<u16>) -> u16 {
     st_port.unwrap_or(8000)
+}
+
+impl StConfig {
+    /// Raw value of a top-level config section (for `getConfigValue` lookups).
+    pub fn raw_section(&self, name: &str) -> Option<&serde_yaml::Mapping> {
+        self.raw.get(name)?.as_mapping()
+    }
 }
 
 impl ResolvedConfig {

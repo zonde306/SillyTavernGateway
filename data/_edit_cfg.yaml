@@ -1,0 +1,6 @@
+node:
+  port: 1
+gateway:
+  listen_addr: "127.0.0.1:36432"
+  node_addr: "127.0.0.1:1"
+  data_root: "data/_sb/data"

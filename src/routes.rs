@@ -14,6 +14,7 @@ use crate::auth::{AuthError, Authenticator};
 use crate::avatar;
 use crate::disk_cache;
 use crate::{card, forward, png, AppState};
+use http_body_util::BodyExt;
 
 /// Methods that require CSRF validation (csrf-sync: everything except
 /// GET/HEAD/OPTIONS).
@@ -55,6 +56,325 @@ fn check_auth(
         })
 }
 
+// ---------------------------------------------------------------------------
+// /api/backends/chat-completions/generate (inline provider family)
+// ---------------------------------------------------------------------------
+
+/// Resolve the user handle the same way `setUserDataMiddleware` does: the
+/// session handle when logged in, otherwise the default user's handle.
+fn generate_user_handle(auth: &crate::auth::AuthContext) -> String {
+    let handle = auth.handle.trim();
+    if !handle.is_empty() {
+        return handle.to_string();
+    }
+    "default-user".to_string()
+}
+
+fn json_error(status: StatusCode, message: &str) -> Response {
+    Response::builder()
+        .status(status)
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({ "error": { "message": message } })).unwrap(),
+        ))
+        .unwrap()
+}
+
+/// POST /api/backends/chat-completions/generate — local implementation for
+/// the OpenAI-compatible providers (everything else forwards to Node).
+async fn chat_completions_generate(
+    State(state): State<Arc<AppState>>,
+    req: Request<Body>,
+) -> Response {
+    // Upstream bodyParser.json limit is 500 MB; keep the same ceiling.
+    const BODY_LIMIT: usize = 512 * 1024 * 1024;
+
+    let (parts, body) = req.into_parts();
+    let auth = match check_auth(&state, &parts) {
+        Ok(a) => a,
+        Err(resp) => return resp,
+    };
+
+    let body_bytes = match axum::body::to_bytes(body, BODY_LIMIT).await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(error = %e, "chat-completions: failed to read request body");
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    };
+
+    let mut parsed: serde_json::Value =
+        if matches!(parts.method, axum::http::Method::POST) && !body_bytes.is_empty() {
+            match serde_json::from_slice(&body_bytes) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(error = %e, "chat-completions: invalid JSON body");
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
+            }
+        } else {
+            serde_json::json!({})
+        };
+    drop(body_bytes);
+
+    if !parsed.is_object() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    let source = parsed
+        .get("chat_completion_source")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    // Anything not handled inline (Claude, MakerSuite, Vertex, ...) keeps
+    // using Node, which also keeps the shared quota/limit accounting intact.
+    if !crate::chat_completions::is_inline_source(&source) {
+        tracing::debug!(source = %source, "chat-completions: forwarding provider to Node");
+        return forward::proxy(state, rebuild_request(parts, parsed)).await;
+    }
+
+    // --- pre-processing (postProcessPrompt) ---------------------------------
+    let messages_is_array = parsed.get("messages").is_some_and(|m| m.is_array());
+    let ptype = parsed
+        .get("custom_prompt_post_processing")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|s| !s.is_empty());
+    if messages_is_array {
+        if let Some(ptype) = ptype {
+            let pt = crate::prompt::PromptProcessingType::parse(&ptype);
+            let names = crate::prompt::PromptNames::from_body(&parsed);
+            let placeholder = state
+                .cfg
+                .st
+                .raw_section("promptPlaceholder")
+                .is_some()
+                .then(String::new)
+                .unwrap_or_else(|| crate::prompt::DEFAULT_PROMPT_PLACEHOLDER.to_string());
+            let placeholder = if placeholder.is_empty() {
+                crate::prompt::DEFAULT_PROMPT_PLACEHOLDER.to_string()
+            } else {
+                placeholder
+            };
+            if let Some(messages) = parsed.get_mut("messages") {
+                crate::prompt::post_process_prompt(messages, pt, &names, &placeholder);
+            }
+        }
+    }
+
+    let user_root = state.cfg.user_dir(&generate_user_handle(&auth));
+    let cookie_secret = state.cfg.data_root.join("cookie-secret.txt");
+    let st_cfg = state.cfg.st.clone();
+
+    let prepared =
+        match crate::chat_completions::prepare(&mut parsed, &user_root, &st_cfg, &cookie_secret) {
+            Ok(p) => p,
+            Err(crate::chat_completions::PrepareError::BadRequest(reason)) => {
+                tracing::warn!(source = %source, reason, "chat-completions: bad request");
+                return StatusCode::BAD_REQUEST.into_response();
+            }
+            Err(crate::chat_completions::PrepareError::Error(message)) => {
+                return json_error(StatusCode::BAD_GATEWAY, &message);
+            }
+        };
+
+    // --- admission gate (size-weighted) -------------------------------------
+    // The permit is held until the response stream ends, which bounds the
+    // number of concurrently live payloads (images included).
+    let body_cost = prepared
+        .body
+        .get("messages")
+        .map(|m| serde_json::to_vec(m).map(|v| v.len() as u64).unwrap_or(0))
+        .unwrap_or(0)
+        + serde_json::to_vec(&prepared.body)
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
+    let permits = state.generate_limiter.acquire(body_cost).await;
+
+    // --- upstream call -------------------------------------------------------
+    let mut builder = Request::builder()
+        .method(axum::http::Method::POST)
+        .uri(prepared.url.as_str());
+    for (k, v) in &prepared.headers {
+        builder = builder.header(k.as_str(), v.as_str());
+    }
+    let request_body = match serde_json::to_vec(&prepared.body) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "chat-completions: failed to serialize request body");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let upstream_req = match builder
+        .body(http_body_util::Full::new(bytes::Bytes::from(request_body)))
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(url = %prepared.url, error = %e, "chat-completions: bad upstream request");
+            return json_error(
+                StatusCode::BAD_GATEWAY,
+                &format!("Invalid request URL: {e}"),
+            );
+        }
+    };
+
+    let response = match state.node.http.request(upstream_req).await {
+        Ok(r) => r,
+        Err(e) => {
+            let message = format!("Could not connect to backend: {e}");
+            tracing::warn!(url = %prepared.url, error = %e, "chat-completions: upstream unreachable");
+            drop(permits);
+            return json_error(StatusCode::BAD_GATEWAY, &message);
+        }
+    };
+
+    let status = response.status();
+    let (mut resp_parts, resp_body) = response.into_parts();
+
+    if status.is_success() {
+        let content_type = resp_parts
+            .headers
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        let protocol = crate::chat_completions::Protocol::for_request(
+            content_type.as_deref(),
+            prepared.stream,
+        );
+        // Response headers must reach the client immediately so the browser can
+        // start rendering before the first token.
+        resp_parts
+            .headers
+            .remove(axum::http::header::CONTENT_LENGTH);
+        resp_parts.headers.insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache"),
+        );
+        resp_parts.headers.insert(
+            axum::http::header::HeaderName::from_static("x-accel-buffering"),
+            axum::http::HeaderValue::from_static("no"),
+        );
+        let interval = std::time::Duration::from_secs(
+            state
+                .cfg
+                .gateway
+                .heartbeat_secs
+                .unwrap_or(crate::heartbeat::DEFAULT_HEARTBEAT_SECS),
+        );
+        // Rebuild the response instead of reusing the upstream's `Parts`:
+        // those extensions carry hyper client-side state that must not travel
+        // into the server-side connection.
+        let mut builder = Response::builder().status(status);
+        if let Some(headers) = builder.headers_mut() {
+            *headers = resp_parts.headers.clone();
+        }
+        let guarded = release_body(resp_body, permits, protocol, interval);
+        return builder.body(guarded).unwrap();
+    }
+
+    // Non-2xx: read the error text and mirror upstream's shape.
+    let text = axum::body::to_bytes(Body::new(resp_body), 32 * 1024 * 1024)
+        .await
+        .map(|b| String::from_utf8_lossy(&b).to_string())
+        .unwrap_or_default();
+    drop(permits);
+
+    let error_json: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
+    let message = if text.is_empty() {
+        status
+            .canonical_reason()
+            .unwrap_or("Unknown error occurred")
+            .to_string()
+    } else {
+        text.clone()
+    };
+    tracing::warn!(
+        status = %status,
+        body = %text.chars().take(500).collect::<String>(),
+        "chat-completions: upstream error"
+    );
+
+    let quota_error = status == StatusCode::TOO_MANY_REQUESTS
+        && error_json
+            .get("error")
+            .and_then(|e| e.get("type"))
+            .and_then(|t| t.as_str())
+            == Some("insufficient_quota");
+
+    let mut payload = json!({ "error": { "message": message } });
+    if quota_error {
+        payload["quota_error"] = json!(true);
+    }
+    Response::builder()
+        .status(if status == StatusCode::UNAUTHORIZED {
+            StatusCode::BAD_REQUEST
+        } else {
+            status
+        })
+        .header(axum::http::header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+        .unwrap()
+}
+
+/// Reassemble a request for the Node fallback.
+fn rebuild_request(parts: axum::http::request::Parts, parsed: serde_json::Value) -> Request<Body> {
+    let encoded = serde_json::to_vec(&parsed).unwrap_or_default();
+    let mut req = Request::from_parts(parts, Body::from(encoded));
+    req.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("application/json"),
+    );
+    req.headers_mut().remove(axum::http::header::CONTENT_LENGTH);
+    req
+}
+
+/// Wrap the upstream body so the size-weighted permit is only released once
+/// the stream is complete, and so idle generations emit keep-alive bytes.
+fn release_body(
+    body: hyper::body::Incoming,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    protocol: crate::chat_completions::Protocol,
+    interval: std::time::Duration,
+) -> Body {
+    let inner = crate::heartbeat::HeartbeatBody::new(
+        body.map_err(|_| -> core::convert::Infallible { unreachable!() }),
+        protocol,
+        interval,
+    );
+    Body::new(PermitGuard { inner, permit })
+}
+
+/// Holds the generation permit for as long as the response body lives.
+struct PermitGuard {
+    inner: crate::heartbeat::HeartbeatBody,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+}
+
+impl http_body::Body for PermitGuard {
+    type Data = bytes::Bytes;
+    type Error = core::convert::Infallible;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        let poll = std::pin::Pin::new(&mut self.inner).poll_frame(cx);
+        if matches!(poll, std::task::Poll::Ready(None)) {
+            self.permit.take();
+        }
+        poll
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        self.inner.size_hint()
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+}
+
 pub fn build_router(state: Arc<AppState>) -> axum::Router {
     let thumbnail_local = state.cfg.route_mode("/thumbnail") == crate::config::RouteMode::Local;
     let mut router = axum::Router::new();
@@ -77,6 +397,10 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
         .route("/api/characters/create", post(characters_create))
         .route("/api/characters/edit-avatar", post(characters_edit_avatar))
         .route("/api/characters/import", post(characters_import))
+        .route(
+            "/api/backends/chat-completions/generate",
+            post(chat_completions_generate),
+        )
         .route("/csrf-token", get(csrf_token_forward))
         .fallback(fallback)
         .with_state(state)
@@ -2087,6 +2411,9 @@ mod tests {
         );
         let cfg = crate::config::ResolvedConfig::from_text(&cfg_text, dir.path().to_path_buf());
         let state = Arc::new(AppState {
+            generate_limiter: std::sync::Arc::new(
+                crate::chat_completions::GenerateLimiter::default(),
+            ),
             thumb_limiter: std::sync::Arc::new(crate::thumbnails::ThumbLimiter::new(
                 cfg.thumb_concurrency(),
             )),
@@ -2409,3 +2736,4 @@ pub mod __test {
         super::import_sync(upload, format, preserved, deps, data_root)
     }
 }
+

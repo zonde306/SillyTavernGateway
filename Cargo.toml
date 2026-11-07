@@ -10,6 +10,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+http-body = "1"
 http-body-util = "0.1"
 tower = "0.5"
 futures-util = "0.3"
@@ -28,6 +29,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 percent-encoding = "2"
 multer = "3.1.0"
+url = "2"
+hyper-rustls = { version = "0.27.10", features = ["http1", "webpki-roots", "native-tokio"] }
 
 [dev-dependencies]
 tempfile = "3"

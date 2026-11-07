@@ -41,7 +41,10 @@ impl Crop {
             y: num("y")?,
             width: num("width")?,
             height: num("height")?,
-            want_resize: obj.get("want_resize").and_then(|x| x.as_bool()).unwrap_or(false),
+            want_resize: obj
+                .get("want_resize")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false),
         })
     }
 }
@@ -141,7 +144,9 @@ pub fn prepare_file_bytes(raw: &[u8], crop: Option<&Crop>) -> Result<Vec<u8>, St
         Ok(img) => apply_crop_resize(&img, crop),
         Err(e) => {
             if crop.is_none() && raw.starts_with(&[0x89, b'P', b'N', b'G']) {
-                tracing::warn!("Failed to read image (unsupported/animated): {e}. Using raw file buffer.");
+                tracing::warn!(
+                    "Failed to read image (unsupported/animated): {e}. Using raw file buffer."
+                );
                 Ok(raw.to_vec())
             } else {
                 Err(e)
@@ -172,7 +177,13 @@ mod tests {
         // 100×100 → cover to 512×768: scale f = max(512/100, 768/100) = 7.68
         let img = decode(&gradient_png(100, 100)).unwrap();
         // the /edit-avatar path always passes a crop:
-        let crop = Crop { x: 0.0, y: 0.0, width: 100.0, height: 100.0, want_resize: true };
+        let crop = Crop {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+            want_resize: true,
+        };
         let out = apply_crop_resize(&img, Some(&crop)).unwrap();
         let decoded = decode(&out).unwrap();
         assert_eq!((decoded.width(), decoded.height()), (512, 768));
@@ -182,8 +193,17 @@ mod tests {
     fn crop_rect_selects_region() {
         // 10×10 red image; crop the left half → 5×10
         let mut img = DynamicImage::new_rgb8(10, 10);
-        img.as_mut_rgb8().unwrap().pixels_mut().for_each(|p| p.0 = [255, 0, 0]);
-        let crop = Crop { x: 0.0, y: 0.0, width: 5.0, height: 10.0, want_resize: false };
+        img.as_mut_rgb8()
+            .unwrap()
+            .pixels_mut()
+            .for_each(|p| p.0 = [255, 0, 0]);
+        let crop = Crop {
+            x: 0.0,
+            y: 0.0,
+            width: 5.0,
+            height: 10.0,
+            want_resize: false,
+        };
         let out = apply_crop_resize(&img, Some(&crop)).unwrap();
         let d = decode(&out).unwrap();
         assert_eq!((d.width(), d.height()), (5, 10));
