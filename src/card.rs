@@ -675,7 +675,10 @@ pub fn process_character(item: &str, deps: &CardDeps) -> Value {
     match process_character_inner(item, &file_path, deps) {
         Ok(v) => v,
         Err(e) => {
-            tracing::error!("Could not process character: {item} ({e})");
+            tracing::error!(
+                file = %file_path.display(),
+                "Could not process character: {item} ({e})"
+            );
             serde_json::json!({
                 "date_added": 0,
                 "date_last_chat": 0,
@@ -696,8 +699,15 @@ fn process_character_inner(
         return Err("PNG metadata does not contain any text chunks".into());
     }
     let img_data = crate::png::extract_card_json(&chunks)?;
-    let parsed: Value =
-        serde_json::from_str(&img_data).map_err(|e| format!("invalid card JSON: {e}"))?;
+    let parsed: Value = serde_json::from_str(&img_data).map_err(|e| {
+        // Show the head of the payload: a truncated or half-spliced tEXt
+        // chunk is the usual cause and is invisible from the error alone.
+        let preview: String = img_data.chars().take(160).collect();
+        format!(
+            "invalid card JSON ({e}); payload starts with {preview:?} ({} bytes)",
+            img_data.len()
+        )
+    })?;
     let value = process_character_from_card(item, parsed, deps, file_path)?;
     Ok(with_json_data(value, &img_data))
 }

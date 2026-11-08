@@ -402,11 +402,19 @@ pub fn generate_thumbnail(
             .map_err(|e| format!("jpeg encode failed: {e}"))?;
     }
 
-    // Atomic write (temp + rename), like write-file-atomic
+    // Atomic write (unique temp + rename), like write-file-atomic. A
+    // pid-only temp name made every concurrent generation for the same file
+    // share one temp and race the rename.
     std::fs::create_dir_all(&thumbnail_folder).map_err(|e| e.to_string())?;
-    let tmp = path_to_cached.with_extension(format!("tmp.{}", std::process::id()));
-    std::fs::write(&tmp, &out).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &path_to_cached).map_err(|e| e.to_string())?;
+    crate::atomic::write(&path_to_cached, &out).map_err(|e| {
+        tracing::error!(
+            file = %file,
+            target = %path_to_cached.display(),
+            error = %e,
+            "thumbnail write failed"
+        );
+        e.to_string()
+    })?;
 
     tracing::debug!(
         file = %file,

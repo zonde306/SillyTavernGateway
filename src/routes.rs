@@ -865,7 +865,14 @@ fn write_card_raw(
     _data_root: &std::path::Path,
 ) -> Result<(), String> {
     let chunks = card_chunks(card_json);
-    png::write_card_to_png(file_path, &chunks).map_err(|e| e.to_string())?;
+    png::write_card_to_png(file_path, &chunks).map_err(|e| {
+        tracing::error!(
+            file = %file_path.display(),
+            error = %e,
+            "chunk surgery failed (file left untouched)"
+        );
+        format!("chunk surgery failed ({}): {e}", file_path.display())
+    })?;
     // (cache prune removed: node-persist never prunes on write; pruning 6k
     // entries costs ~18s sync IO and hung every create/edit)
     Ok(())
@@ -964,7 +971,10 @@ fn edit_attribute_sync(
     }
 
     let new_json = serde_json::to_string(&char).map_err(|e| e.to_string())?;
-    let target = avatar_url.trim_end_matches(".png");
+    // Upstream: (avatar_url).replace('.png', '') — replaces the FIRST
+    // occurrence anywhere, which for a filename ending in .png is the same
+    // as trimming that suffix once.
+    let target = avatar_url.replacen(".png", "", 1);
     let target_path = deps.characters_dir.join(format!("{target}.png"));
     write_card_raw(&target_path, &new_json, data_root)
 }
@@ -1018,12 +1028,18 @@ async fn characters_rename(State(state): State<Arc<AppState>>, req: Request<Body
 
 fn rename_sync(
     deps: &card::CardDeps,
-    data_root: &std::path::Path,
+    _data_root: &std::path::Path,
     old_avatar: &str,
     new_name_raw: &str,
 ) -> Result<String, String> {
     let new_name = card::sanitize_filename(new_name_raw);
-    let old_internal = old_avatar.trim_end_matches(".png");
+    // path.parse(x).name — strip exactly one trailing ".png", not every
+    // trailing "png"/".png" repetition (trim_end_matches is greedy and turned
+    // "a.png.png" into "a").
+    let old_internal = old_avatar
+        .strip_suffix(".png")
+        .unwrap_or(old_avatar)
+        .to_string();
     let new_internal = card::get_png_name(&new_name, &deps.characters_dir);
     let new_avatar = format!("{new_internal}.png");
 
@@ -1031,9 +1047,10 @@ fn rename_sync(
     let new_avatar_path = deps.characters_dir.join(&new_avatar);
 
     // Read old card, rewrite name fields
-    let raw = read_card_raw(&old_avatar_path)?;
-    let parsed: serde_json::Value =
-        serde_json::from_str(&raw).map_err(|e| format!("card JSON invalid: {e}"))?;
+    let raw = read_card_raw(&old_avatar_path)
+        .map_err(|e| format!("read {}: {e}", old_avatar_path.display()))?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("card JSON invalid ({}): {e}", old_avatar_path.display()))?;
     let mut old_data = card::get_chara_card_v2(parsed);
     card::set_path_value(
         &mut old_data,
@@ -1043,25 +1060,61 @@ fn rename_sync(
     card::set_path_value(&mut old_data, "name", serde_json::Value::from(new_name));
     let new_json = serde_json::to_string(&old_data).map_err(|e| e.to_string())?;
 
-    // Write to the NEW location via chunk surgery (upstream writes with the
-    // new internal name before removing the old file)
-    write_card_raw(&new_avatar_path, &new_json, data_root)?;
+    // Write to the NEW location via chunk surgery. The SOURCE is the old card
+    // and the DESTINATION is the new file — passing the new path as both (as
+    // an in-place rewrite would) tries to read a file that does not exist yet
+    // and fails with ENOENT on every rename.
+    let chunks = card_chunks(&new_json);
+    png::write_card_to_png_from_to(&old_avatar_path, &new_avatar_path, &chunks).map_err(|e| {
+        tracing::error!(
+            from = %old_avatar_path.display(),
+            to = %new_avatar_path.display(),
+            error = %e,
+            "rename: writing the renamed card failed"
+        );
+        format!(
+            "write {} -> {}: {e}",
+            old_avatar_path.display(),
+            new_avatar_path.display()
+        )
+    })?;
 
     // Migrate the chats folder (same-dir rename; cpSync+rmSync upstream, but
     // same-filesystem rename is atomic and equivalent)
-    let old_chats = deps.chats_dir.join(old_internal);
+    let old_chats = deps.chats_dir.join(&old_internal);
     let new_chats = deps.chats_dir.join(&new_internal);
     if old_chats.exists() && !new_chats.exists() {
-        std::fs::rename(&old_chats, &new_chats).map_err(|e| {
-            format!(
-                "chats migration failed ({} -> {}): {e}",
-                old_chats.display(),
-                new_chats.display()
-            )
-        })?;
+        if let Err(e) = std::fs::rename(&old_chats, &new_chats) {
+            // The renamed card already exists, so this is not a failure of the
+            // rename itself: rolling back the card would lose the user's edit
+            // for a chat-history move. Log loudly and keep going — the chats
+            // stay under the old internal name and are still readable.
+            tracing::error!(
+                from = %old_chats.display(),
+                to = %new_chats.display(),
+                error = %e,
+                "rename: chats folder migration failed"
+            );
+        }
     }
 
-    std::fs::remove_file(&old_avatar_path).map_err(|e| e.to_string())?;
+    // Remove the old file. The new card is already complete and valid, so a
+    // deletion failure must NOT turn this into a 500: the browser would show
+    // an error while the disk already moved on, which is exactly the
+    // "reload the page to fix it" state. Retry briefly for Windows sharing
+    // violations and warn if the duplicate is left behind.
+    if let Err(e) = crate::atomic::remove_with_retry(&old_avatar_path) {
+        tracing::warn!(
+            file = %old_avatar_path.display(),
+            error = %e,
+            "rename: renamed card written but the old file could not be removed"
+        );
+    }
+    tracing::info!(
+        from = %old_avatar,
+        to = %new_avatar,
+        "character renamed"
+    );
     Ok(new_avatar)
 }
 
@@ -1162,15 +1215,14 @@ fn export_sync(
             let mut mutated = parsed;
             card::unset_private_fields(&mut mutated);
             let mutated_json = serde_json::to_string(&mutated).map_err(|e| e.to_string())?;
-            // write(rawBuffer, mutatedData): full chunk replacement
+            // write(rawBuffer, mutatedData): full chunk replacement.
+            // Splice in memory — the response body needs the bytes anyway, so
+            // a temp file in the characters dir only created a fixed-name
+            // collision between concurrent exports.
             let new_chunks = card_chunks(&mutated_json);
-            // Surgery to a temp copy so the original stays untouched
-            // (upstream writes the mutated buffer straight to the response).
-            let tmp_out = filename.with_extension("export.tmp");
-            png::write_card_to_png_from_to(filename, &tmp_out, &new_chunks)
-                .map_err(|e| e.to_string())?;
-            let bytes = std::fs::read(&tmp_out).map_err(|e| e.to_string())?;
-            let _ = std::fs::remove_file(&tmp_out);
+            let original = std::fs::read(filename).map_err(|e| e.to_string())?;
+            let bytes = png::splice_card_bytes(&original, &new_chunks)
+                .map_err(|e| format!("export chunk splice: {e}"))?;
             Ok(Exported::Png(bytes))
         }
         "json" => {
@@ -1347,10 +1399,26 @@ fn write_card_bytes(
 ) -> Result<(), String> {
     let chunks = card_chunks(card_json);
     let out_path = deps.characters_dir.join(format!("{output_file}.png"));
-    // Materialize the image bytes, then run the in-place chunk splice
-    // (write_card_to_png reads src, writes src.png.tmp, renames back to src).
-    std::fs::write(&out_path, &image_bytes).map_err(|e| format!("image write: {e}"))?;
-    png::write_card_to_png(&out_path, &chunks).map_err(|e| e.to_string())?;
+    // Splice the chunks in MEMORY and write the result atomically. Writing the
+    // raw image onto out_path first (then splicing in place) truncated the
+    // existing card before the splice could fail, and a fixed temp name let
+    // two concurrent writers clobber each other.
+    let finished = png::splice_card_bytes(&image_bytes, &chunks).map_err(|e| {
+        tracing::error!(
+            file = %out_path.display(),
+            error = %e,
+            "avatar chunk splice failed (file left untouched)"
+        );
+        format!("chunk splice ({}): {e}", out_path.display())
+    })?;
+    crate::atomic::write(&out_path, &finished).map_err(|e| {
+        tracing::error!(
+            file = %out_path.display(),
+            error = %e,
+            "avatar card write failed"
+        );
+        format!("write {}: {e}", out_path.display())
+    })?;
     Ok(())
     // (no prune: see write_card_raw comment)
 }
@@ -1591,6 +1659,24 @@ async fn characters_edit_full(State(state): State<Arc<AppState>>, req: Request<B
     let deps = user_dirs(&state, &auth.handle);
     let data_root = state.cfg.data_root.clone();
 
+    // Enough context to diagnose a 500 without reproducing it: which card,
+    // which body shape, whether an avatar upload was present, and whether the
+    // file existed at request time.
+    let avatar_path = deps.characters_dir.join(&avatar_url);
+    let log_ch_name = ch_name.to_string();
+    let log_avatar_url = avatar_url.clone();
+    let log_characters_dir = deps.characters_dir.clone();
+    tracing::debug!(
+        user = %auth.handle,
+        ch_name = %ch_name,
+        avatar_url = %avatar_url,
+        content_type = %ct,
+        upload_bytes = upload.as_ref().map(|b| b.len()),
+        crop = crop.is_some(),
+        file_exists = avatar_path.exists(),
+        "character edit request"
+    );
+
     let result = tokio::task::spawn_blocking(move || {
         edit_full_sync(
             &form,
@@ -1607,7 +1693,12 @@ async fn characters_edit_full(State(state): State<Arc<AppState>>, req: Request<B
     match result {
         Ok(()) => StatusCode::OK.into_response(),
         Err(e) => {
-            tracing::error!("An error occurred, character edit invalidated: {e}");
+            tracing::error!(
+                ch_name = %log_ch_name,
+                avatar_url = %log_avatar_url,
+                characters_dir = %log_characters_dir.display(),
+                "An error occurred, character edit invalidated: {e}"
+            );
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -1637,6 +1728,19 @@ fn edit_full_sync(
     match upload {
         None => {
             let avatar_path = deps.characters_dir.join(avatar_url);
+            if !avatar_path.exists() {
+                // Upstream writeCharacterData → getInputImage → tryReadImage
+                // swallows a read failure and writes the card over the
+                // DEFAULT avatar, so a vanished PNG still yields a saved card
+                // instead of a 500 + a half-broken frontend state.
+                tracing::warn!(
+                    file = %avatar_path.display(),
+                    "character file is missing; recreating it with the default avatar"
+                );
+                let default_raw = read_default_avatar_bytes(data_root)?;
+                let prepared = avatar::prepare_upload_bytes(&default_raw, None, &default_raw)?;
+                return write_card_bytes(prepared, &card_json, &target_file, deps);
+            }
             write_card_raw(&avatar_path, &card_json, data_root)
         }
         Some(bytes) => {
@@ -1738,7 +1842,7 @@ fn edit_avatar_sync(
     invalidate_avatar_thumbnail(deps, avatar_url);
     let default_raw = read_default_avatar_bytes(data_root)?;
     let prepared = avatar::prepare_upload_bytes(upload, crop.as_ref(), &default_raw)?;
-    let file_name = avatar_url.replace(".png", "");
+    let file_name = avatar_url.replacen(".png", "", 1);
     write_card_bytes(prepared, &data, &file_name, deps)?;
     // (cache prune removed: node-persist never prunes on write; pruning 6k
     // entries costs ~18s sync IO and hung every create/edit)
@@ -2122,7 +2226,15 @@ fn import_sync(
 fn read_card_bytes(png_bytes: &[u8]) -> Result<String, String> {
     // Reuse the streaming chunk reader via a short-lived temp file; uploads
     // are MBs. Avoids duplicating the chunk parser for in-memory buffers.
-    let tmp = std::env::temp_dir().join(format!("st-import-{}.png", std::process::id()));
+    // The name must be unique per call: a pid-only name made two concurrent
+    // imports read each other's bytes.
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let tmp = std::env::temp_dir().join(format!(
+        "st-import-{}-{}.png",
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
     std::fs::write(&tmp, png_bytes).map_err(|e| e.to_string())?;
     let result = (|| {
         let chunks = png::read_text_chunks(&tmp).map_err(|e| e.to_string())?;
@@ -2735,5 +2847,13 @@ pub mod __test {
     ) -> Result<String, String> {
         super::import_sync(upload, format, preserved, deps, data_root)
     }
-}
 
+    pub fn rename_sync(
+        deps: &CardDeps,
+        data_root: &std::path::Path,
+        old_avatar: &str,
+        new_name: &str,
+    ) -> Result<String, String> {
+        super::rename_sync(deps, data_root, old_avatar, new_name)
+    }
+}

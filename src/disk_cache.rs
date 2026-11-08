@@ -122,18 +122,15 @@ impl DiskCache {
 
     /// Write a cache entry: `{"key": ..., "value": ...}` (key before value,
     /// ttl omitted — byte-compatible with Node's JSON.stringify output).
-    /// Uses temp file + rename so a concurrent Node read never sees a partial
-    /// write.
+    /// Atomic (unique temp + rename) so a concurrent reader — the gateway's
+    /// own requests or Node — never sees a partial write, and two writers
+    /// never share a temp file.
     pub fn put(&self, key: &str, value: &str) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.dir)?;
         let datum = serde_json::json!({ "key": key, "value": value });
         let bytes = serde_json::to_string(&datum).unwrap_or_default();
-
         let final_path = self.dir.join(hash_key(key));
-        let tmp_path = final_path.with_extension("tmp");
-        std::fs::write(&tmp_path, bytes)?;
-        std::fs::rename(&tmp_path, &final_path)?;
-        Ok(())
+        crate::atomic::write(&final_path, bytes.as_bytes())
     }
 
     /// Remove entries whose cached key no longer matches disk state — the

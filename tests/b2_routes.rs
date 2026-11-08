@@ -543,3 +543,118 @@ fn multipart_fields_to_map_duplicates_to_array() {
         &serde_json::json!(["t1", "t2", "t3"])
     );
 }
+
+// ---------------------------------------------------------------------------
+// Regressions: /rename 500, /edit 500 + card corruption, "not valid base64"
+// ---------------------------------------------------------------------------
+
+/// `/rename` used to pass the NEW path as both the chunk-surgery source and
+/// destination, so it always failed with ENOENT (os error 2) and the 500
+/// rolled back to "character cannot be renamed".
+#[test]
+fn rename_sync_actually_renames_the_card() {
+    let dir = tempfile::tempdir().unwrap();
+    let deps = st_gateway::card::CardDeps {
+        characters_dir: dir.path().join("default-user/characters"),
+        chats_dir: dir.path().join("default-user/chats"),
+        worlds_dir: dir.path().join("default-user/worlds"),
+    };
+    std::fs::create_dir_all(&deps.characters_dir).unwrap();
+    std::fs::create_dir_all(deps.chats_dir.join("old name")).unwrap();
+    std::fs::write(deps.chats_dir.join("old name/chat.jsonl"), b"{}\n").unwrap();
+    make_card_png(&deps.characters_dir.join("old name.png"), "old name");
+
+    let new_avatar = st_gateway::routes::__test::rename_sync(
+        &deps,
+        dir.path(),
+        "old name.png",
+        "new name",
+    )
+    .expect("rename must succeed");
+
+    assert_eq!(new_avatar, "new name.png");
+    assert!(!deps.characters_dir.join("old name.png").exists());
+    let new_path = deps.characters_dir.join(&new_avatar);
+    assert!(new_path.exists());
+    // chats folder migrated
+    assert!(deps.chats_dir.join("new name/chat.jsonl").exists());
+    assert!(!deps.chats_dir.join("old name").exists());
+    // card name fields rewritten, image chunks intact
+    let chunks = st_gateway::png::read_text_chunks(&new_path).unwrap();
+    let card: serde_json::Value =
+        serde_json::from_str(&st_gateway::png::extract_card_json(&chunks).unwrap()).unwrap();
+    assert_eq!(card["data"]["name"], "new name");
+    assert_eq!(card["name"], "new name");
+}
+
+/// Two concurrent `/edit`s on the same card used to share one fixed
+/// `<file>.png.tmp`: one writer truncated the other's bytes and the second
+/// rename failed with ENOENT, leaving a card whose tEXt chunk no longer
+/// parsed (the "extra first message disappeared" + `/get` 500 report).
+#[test]
+fn concurrent_edits_never_corrupt_the_card() {
+    let dir = tempfile::tempdir().unwrap();
+    let deps = st_gateway::card::CardDeps {
+        characters_dir: dir.path().join("default-user/characters"),
+        chats_dir: dir.path().join("default-user/chats"),
+        worlds_dir: dir.path().join("default-user/worlds"),
+    };
+    std::fs::create_dir_all(&deps.characters_dir).unwrap();
+    let data_root = dir.path().to_path_buf();
+    let path = deps.characters_dir.join("c.png");
+    make_card_png(&path, "c");
+
+    let handles: Vec<_> = (0..8)
+        .map(|i| {
+            let deps = deps.clone();
+            let data_root = data_root.clone();
+            std::thread::spawn(move || {
+                let form = serde_json::json!({
+                    "ch_name": "c",
+                    "description": format!("desc{i}"),
+                    "first_mes": "hi",
+                    "alternate_greetings": ["g1", "g2", "g3"],
+                });
+                st_gateway::routes::__test::edit_full_sync(
+                    &form, "c.png", None, None, &deps, &data_root,
+                )
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap().expect("concurrent edit must not fail");
+    }
+
+    // The card must still parse, and no temp files may be left behind.
+    let chunks = st_gateway::png::read_text_chunks(&path).unwrap();
+    let raw = st_gateway::png::extract_card_json(&chunks).unwrap();
+    let card: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(card["data"]["alternate_greetings"].as_array().unwrap().len(), 3);
+    let leftovers: Vec<String> = std::fs::read_dir(&deps.characters_dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| n.ends_with(".tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "leftover temp files: {leftovers:?}");
+}
+
+/// Cards written by other tools have unpadded / padded / whitespace-laden
+/// base64, and Node decodes them all. We used to reject them outright, which
+/// turned into "Could not process character ... (card text is not valid
+/// base64/utf8)" and a character silently missing from the list.
+#[test]
+fn unpadded_and_padded_base64_cards_both_load() {
+    let card = serde_json::json!({"name": "x", "data": {"name": "x"}}).to_string();
+    use base64::Engine;
+    let padded = base64::engine::general_purpose::STANDARD.encode(card.as_bytes());
+    let unpadded = padded.trim_end_matches('=');
+    for payload in [padded.clone(), unpadded.to_string()] {
+        let chunks = vec![st_gateway::png::TextChunk {
+            keyword: "chara".into(),
+            text: payload.into_bytes(),
+        }];
+        let out = st_gateway::png::extract_card_json(&chunks).unwrap();
+        assert_eq!(out, card);
+    }
+}

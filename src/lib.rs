@@ -4,6 +4,7 @@
 // The world-book json! literal in card.rs nests deeply.
 #![recursion_limit = "512"]
 
+pub mod atomic;
 pub mod auth;
 pub mod avatar;
 pub mod card;
