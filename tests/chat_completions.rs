@@ -302,7 +302,26 @@ fn inline_source_set_matches_port() {
     ] {
         assert!(is_inline_source(s), "{s} should be inline");
     }
-    for s in ["claude", "makersuite", "vertexai", "cohere", "deepseek", ""] {
-        assert!(!is_inline_source(s), "{s} must forward to Node");
+    // Every provider SillyTavern can select is built in-process now; nothing
+    // in `CHAT_COMPLETION_SOURCES` is forwarded to Node any more.
+    for s in [
+        "claude",
+        "ai21",
+        "makersuite",
+        "vertexai",
+        "mistralai",
+        "cohere",
+        "deepseek",
+        "aimlapi",
+        "xai",
+        "chutes",
+        "minimax",
+        "electronhub",
+        "azure_openai",
+    ] {
+        assert!(is_inline_source(s), "{s} should be handled locally");
+    }
+    for s in ["", "not-a-provider"] {
+        assert!(!is_inline_source(s), "{s} is unknown and still forwards");
     }
 }

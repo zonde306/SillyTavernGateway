@@ -80,6 +80,15 @@ fn json_error(status: StatusCode, message: &str) -> Response {
         .unwrap()
 }
 
+/// How long to wait for the *error* body of a failed upstream call.
+///
+/// A streamed request has already answered 200, so the provider's error text
+/// is delivered as an in-band event — but only after this read finishes. A
+/// body that never ends would therefore leave the client receiving nothing but
+/// heartbeats, with the failure never reported. The text is a diagnostic, not
+/// payload, so a short budget is enough and a timeout still reports the status.
+const ERROR_BODY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// POST /api/backends/chat-completions/generate — local implementation for
 /// the OpenAI-compatible providers (everything else forwards to Node).
 async fn chat_completions_generate(
@@ -127,10 +136,11 @@ async fn chat_completions_generate(
         .unwrap_or("")
         .to_string();
 
-    // Anything not handled inline (Claude, MakerSuite, Vertex, ...) keeps
-    // using Node, which also keeps the shared quota/limit accounting intact.
+    // Every `CHAT_COMPLETION_SOURCES` value is built in-process now. An
+    // unrecognised source is not a provider we know, so it keeps the old
+    // pass-through behaviour instead of silently becoming an OpenAI request.
     if !crate::chat_completions::is_inline_source(&source) {
-        tracing::debug!(source = %source, "chat-completions: forwarding provider to Node");
+        tracing::warn!(source = %source, "chat-completions: unknown provider, forwarding to Node");
         return forward::proxy(state, rebuild_request(parts, parsed)).await;
     }
 
@@ -167,17 +177,25 @@ async fn chat_completions_generate(
     let cookie_secret = state.cfg.data_root.join("cookie-secret.txt");
     let st_cfg = state.cfg.st.clone();
 
-    let prepared =
-        match crate::chat_completions::prepare(&mut parsed, &user_root, &st_cfg, &cookie_secret) {
-            Ok(p) => p,
-            Err(crate::chat_completions::PrepareError::BadRequest(reason)) => {
-                tracing::warn!(source = %source, reason, "chat-completions: bad request");
-                return StatusCode::BAD_REQUEST.into_response();
-            }
-            Err(crate::chat_completions::PrepareError::Error(message)) => {
-                return json_error(StatusCode::BAD_GATEWAY, &message);
-            }
-        };
+    let prepared = match crate::chat_completions::prepare(
+        &mut parsed,
+        &user_root,
+        &st_cfg,
+        &cookie_secret,
+    ) {
+        Ok(p) => p,
+        Err(crate::chat_completions::PrepareError::BadRequest(reason)) => {
+            tracing::warn!(source = %source, reason, "chat-completions: bad request");
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+        Err(crate::chat_completions::PrepareError::Message(message)) => {
+            tracing::warn!(source = %source, %message, "chat-completions: provider rejected setup");
+            return json_error(StatusCode::BAD_REQUEST, &message);
+        }
+        Err(crate::chat_completions::PrepareError::Error(message)) => {
+            return json_error(StatusCode::BAD_GATEWAY, &message);
+        }
+    };
 
     // --- admission gate (size-weighted) -------------------------------------
     // The permit is held until the response stream ends, which bounds the
@@ -219,6 +237,76 @@ async fn chat_completions_generate(
         }
     };
 
+    let interval = crate::heartbeat::interval_from_config(state.cfg.gateway.heartbeat_secs);
+
+    // --- streaming: answer before the provider does --------------------------
+    // A provider that is thinking sends no status line at all, so awaiting it
+    // here reproduces the silence Cloudflare turns into a 524. A streamed
+    // request therefore commits to a 200 immediately and keeps the client fed
+    // with keep-alives while the upstream call runs; `PendingBody` hands over to
+    // the real body (or emits an error event) once it settles.
+    if prepared.stream && interval > std::time::Duration::ZERO {
+        let (tx, rx) = tokio::sync::oneshot::channel::<crate::heartbeat::UpstreamResult>();
+        let http = state.node.http.clone();
+        let url = prepared.url.clone();
+        tokio::spawn(async move {
+            let result = match http.request(upstream_req).await {
+                Ok(response) if response.status().is_success() => Ok(response),
+                Ok(response) => {
+                    // The 200 is already committed, so the provider's own
+                    // error text has to travel inside the stream — losing it
+                    // would turn "insufficient quota" into a bare status.
+                    let status = response.status();
+                    // A body that never finishes must not hold the error
+                    // event back: while this read is pending the client sees
+                    // nothing but heartbeats and the failure never lands.
+                    // The error text is a diagnostic, not payload, so a short
+                    // budget is enough and a timeout still reports the status.
+                    let raw = match tokio::time::timeout(
+                        ERROR_BODY_TIMEOUT,
+                        axum::body::to_bytes(Body::new(response.into_body()), 1024 * 1024),
+                    )
+                    .await
+                    {
+                        Ok(bytes) => bytes.unwrap_or_default(),
+                        Err(_) => {
+                            tracing::warn!(url = %url, %status, "chat-completions: upstream error body timed out");
+                            Default::default()
+                        }
+                    };
+                    let text = String::from_utf8_lossy(&raw).trim().to_string();
+                    tracing::warn!(url = %url, %status, body = %text.chars().take(500).collect::<String>(), "chat-completions: upstream error");
+                    Err(if text.is_empty() {
+                        status.to_string()
+                    } else {
+                        text
+                    })
+                }
+                Err(e) => {
+                    tracing::warn!(url = %url, error = %e, "chat-completions: upstream unreachable");
+                    Err(format!("Could not connect to backend: {e}"))
+                }
+            };
+            // The receiver is gone if the client already disconnected.
+            let _ = tx.send(result);
+        });
+
+        let body = PermitGuard {
+            inner: crate::heartbeat::PendingBody::new(rx, interval),
+            permit: permits,
+        };
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(axum::http::header::CONTENT_TYPE, "text/event-stream")
+            .header(axum::http::header::CACHE_CONTROL, "no-cache")
+            .header(
+                axum::http::header::HeaderName::from_static("x-accel-buffering"),
+                "no",
+            )
+            .body(Body::new(body))
+            .unwrap();
+    }
+
     let response = match state.node.http.request(upstream_req).await {
         Ok(r) => r,
         Err(e) => {
@@ -238,6 +326,25 @@ async fn chat_completions_generate(
             .get(axum::http::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
+
+        // Claude and Gemini answer in their own JSON shape. Node translated it
+        // for them; we do the same, and only for a non-streamed body — a
+        // streamed response is already in the format the client parses.
+        if !prepared.stream && prepared.transform != crate::providers::ResponseTransform::None {
+            let raw = axum::body::to_bytes(Body::new(resp_body), 32 * 1024 * 1024)
+                .await
+                .unwrap_or_default();
+            let rewritten = crate::providers::apply_transform(prepared.transform, &raw);
+            drop(permits);
+            let payload = rewrite_or_inverse(&raw, rewritten);
+            return Response::builder()
+                .status(status)
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .header(axum::http::header::CACHE_CONTROL, "no-cache")
+                .body(Body::from(payload))
+                .unwrap();
+        }
+
         let protocol = crate::chat_completions::Protocol::for_request(
             content_type.as_deref(),
             prepared.stream,
@@ -254,13 +361,6 @@ async fn chat_completions_generate(
         resp_parts.headers.insert(
             axum::http::header::HeaderName::from_static("x-accel-buffering"),
             axum::http::HeaderValue::from_static("no"),
-        );
-        let interval = std::time::Duration::from_secs(
-            state
-                .cfg
-                .gateway
-                .heartbeat_secs
-                .unwrap_or(crate::heartbeat::DEFAULT_HEARTBEAT_SECS),
         );
         // Rebuild the response instead of reusing the upstream's `Parts`:
         // those extensions carry hyper client-side state that must not travel
@@ -317,6 +417,17 @@ async fn chat_completions_generate(
         .unwrap()
 }
 
+/// Apply a producer-side response rewrite, falling back to the original bytes
+/// when the body was not valid JSON (a provider error page, for instance).
+/// The inverse case — a valid rewrite over an unparseable body — cannot happen
+/// because `apply_transform` returns `None` when it cannot parse.
+fn rewrite_or_inverse(original: &[u8], rewritten: Option<Vec<u8>>) -> Vec<u8> {
+    match rewritten {
+        Some(bytes) => bytes,
+        None => original.to_vec(),
+    }
+}
+
 /// Reassemble a request for the Node fallback.
 fn rebuild_request(parts: axum::http::request::Parts, parsed: serde_json::Value) -> Request<Body> {
     let encoded = serde_json::to_vec(&parsed).unwrap_or_default();
@@ -346,12 +457,15 @@ fn release_body(
 }
 
 /// Holds the generation permit for as long as the response body lives.
-struct PermitGuard {
-    inner: crate::heartbeat::HeartbeatBody,
+struct PermitGuard<B> {
+    inner: B,
     permit: Option<tokio::sync::OwnedSemaphorePermit>,
 }
 
-impl http_body::Body for PermitGuard {
+impl<B> http_body::Body for PermitGuard<B>
+where
+    B: http_body::Body<Data = bytes::Bytes, Error = core::convert::Infallible> + Unpin,
+{
     type Data = bytes::Bytes;
     type Error = core::convert::Infallible;
 

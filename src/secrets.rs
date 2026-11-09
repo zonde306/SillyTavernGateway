@@ -32,6 +32,7 @@ pub mod keys {
     pub const CLAUDE: &str = "api_key_claude";
     pub const MAKERSUITE: &str = "api_key_makersuite";
     pub const VERTEXAI: &str = "api_key_vertexai";
+    pub const VERTEXAI_SERVICE_ACCOUNT: &str = "api_key_vertexai_service_account";
     pub const AI21: &str = "api_key_ai21";
     pub const MISTRALAI: &str = "api_key_mistralai";
     pub const COHERE: &str = "api_key_cohere";

@@ -1,0 +1,1019 @@
+{
+ "claude": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.anthropic.com/v1/messages",
+    "headers": {
+     "Content-Type": "application/json",
+     "anthropic-version": "2023-06-01",
+     "x-api-key": "sk-claude",
+     "anthropic-beta": "output-128k-2025-02-19,context-1m-2025-08-07"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "user",
+       "content": [
+        {
+         "type": "text",
+         "text": "You are Seraphina."
+        },
+        {
+         "type": "text",
+         "text": "Kai: Hello"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "content": [
+        {
+         "type": "text",
+         "text": "Hi!"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "content": [
+        {
+         "type": "text",
+         "text": "How are you?"
+        }
+       ]
+      }
+     ],
+     "model": "test-model",
+     "max_tokens": 500,
+     "stop_sequences": [
+      "STOP"
+     ],
+     "temperature": 0.8,
+     "top_p": 0.9,
+     "top_k": 40,
+     "stream": false
+    }
+   }
+  ],
+  "payload": {
+   "choices": [
+    {
+     "message": {
+      "content": ""
+     }
+    }
+   ]
+  }
+ },
+ "ai21": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.ai21.com/studio/v1/chat/completions",
+    "headers": {
+     "accept": "application/json",
+     "content-type": "application/json",
+     "Authorization": "Bearer sk-ai21"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "max_tokens": 500,
+     "temperature": 0.8,
+     "top_p": 0.9,
+     "stop": [
+      "STOP"
+     ],
+     "stream": false
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "makersuite": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/test-model:generateContent?key=sk-makersuite",
+    "headers": {
+     "Content-Type": "application/json"
+    },
+    "body": {
+     "contents": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "text": "You are Seraphina.\n\nKai: Hello"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "text": "Hi!"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "text": "How are you?"
+        }
+       ]
+      }
+     ],
+     "safetySettings": [
+      {
+       "category": "HARM_CATEGORY_HARASSMENT",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_HATE_SPEECH",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_CIVIC_INTEGRITY",
+       "threshold": "OFF"
+      }
+     ],
+     "generationConfig": {
+      "stopSequences": [
+       "STOP"
+      ],
+      "candidateCount": 1,
+      "maxOutputTokens": 500,
+      "temperature": 0.8,
+      "topP": 0.9,
+      "topK": 40,
+      "seed": 42
+     }
+    }
+   }
+  ],
+  "payload": {
+   "error": {
+    "message": "Google AI Studio API returned no candidate"
+   }
+  }
+ },
+ "mistralai": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.mistral.ai/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-mistralai"
+    },
+    "body": {
+     "model": "test-model",
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "temperature": 0.8,
+     "top_p": 0.9,
+     "frequency_penalty": 0.2,
+     "presence_penalty": 0.1,
+     "max_tokens": 500,
+     "stream": false,
+     "random_seed": 42,
+     "stop": [
+      "STOP"
+     ]
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "cohere": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.cohere.ai/v2/chat",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-cohere"
+    },
+    "body": {
+     "stream": false,
+     "model": "test-model",
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "k": 40,
+     "p": 0.9,
+     "seed": 42,
+     "stop_sequences": [
+      "STOP"
+     ],
+     "frequency_penalty": 0.2,
+     "presence_penalty": 0.1,
+     "documents": [],
+     "tools": []
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "deepseek": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.deepseek.com/beta/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-deepseek"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "stop": [
+      "STOP"
+     ],
+     "seed": 42,
+     "thinking": {
+      "type": "disabled"
+     },
+     "top_logprobs": 3,
+     "logprobs": true
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "aimlapi": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.aimlapi.com/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-aimlapi",
+     "HTTP-Referer": "https://sillytavern.app",
+     "X-Title": "SillyTavern"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Hello",
+       "name": "Kai"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "seed": 42,
+     "top_logprobs": 3,
+     "logprobs": true,
+     "stop": [
+      "STOP"
+     ]
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "xai": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.x.ai/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-xai"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Hello",
+       "name": "Kai"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "seed": 42,
+     "top_logprobs": 3,
+     "logprobs": true,
+     "stop": [
+      "STOP"
+     ]
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "chutes": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://llm.chutes.ai/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-chutes"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Hello",
+       "name": "Kai"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "top_k": 40,
+     "seed": 42,
+     "stop": [
+      "STOP"
+     ],
+     "top_logprobs": 3,
+     "logprobs": true
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "minimax": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.minimax.io/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-minimax"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "top_p": 0.9,
+     "stop": [
+      "STOP"
+     ]
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "electronhub": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.electronhub.ai/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-electronhub"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Hello",
+       "name": "Kai"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "top_k": 40,
+     "seed": 42
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "azure_openai": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://example.openai.azure.com/openai/deployments/my-deploy/chat/completions?api-version=2024-10-21",
+    "headers": {
+     "Content-Type": "application/json",
+     "api-key": "sk-azure_openai"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Hello",
+       "name": "Kai"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "temperature": 0.8,
+     "frequency_penalty": 0.2,
+     "presence_penalty": 0.1,
+     "top_p": 0.9,
+     "max_tokens": 500,
+     "stream": false,
+     "stop": [
+      "STOP"
+     ],
+     "logprobs": true,
+     "seed": 42,
+     "top_logprobs": 3
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "claude_thinking": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.anthropic.com/v1/messages",
+    "headers": {
+     "Content-Type": "application/json",
+     "anthropic-version": "2023-06-01",
+     "x-api-key": "sk-claude",
+     "anthropic-beta": "output-128k-2025-02-19,context-1m-2025-08-07"
+    },
+    "body": {
+     "system": [
+      {
+       "type": "text",
+       "text": "You are Seraphina."
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "content": [
+        {
+         "type": "text",
+         "text": "Kai: Hello"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "content": [
+        {
+         "type": "text",
+         "text": "Hi!"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "content": [
+        {
+         "type": "text",
+         "text": "How are you?"
+        }
+       ]
+      }
+     ],
+     "model": "claude-opus-4-5",
+     "max_tokens": 1524,
+     "stop_sequences": [
+      "STOP"
+     ],
+     "stream": false,
+     "thinking": {
+      "type": "enabled",
+      "budget_tokens": 1024
+     }
+    }
+   }
+  ],
+  "payload": {
+   "choices": [
+    {
+     "message": {
+      "content": ""
+     }
+    }
+   ]
+  }
+ },
+ "makersuite_sysprompt": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=sk-makersuite",
+    "headers": {
+     "Content-Type": "application/json"
+    },
+    "body": {
+     "contents": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "text": "Kai: Hello"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "text": "Hi!"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "text": "How are you?"
+        }
+       ]
+      }
+     ],
+     "safetySettings": [
+      {
+       "category": "HARM_CATEGORY_HARASSMENT",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_HATE_SPEECH",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+       "threshold": "OFF"
+      },
+      {
+       "category": "HARM_CATEGORY_CIVIC_INTEGRITY",
+       "threshold": "OFF"
+      }
+     ],
+     "generationConfig": {
+      "stopSequences": [
+       "STOP"
+      ],
+      "candidateCount": 1,
+      "maxOutputTokens": 500,
+      "temperature": 0.8,
+      "topP": 0.9,
+      "topK": 40,
+      "responseMimeType": "application/json",
+      "responseSchema": {
+       "type": "object",
+       "properties": {
+        "a": {
+         "type": "string"
+        }
+       }
+      },
+      "seed": 42,
+      "thinkingConfig": {
+       "includeThoughts": false,
+       "thinkingBudget": 0
+      }
+     },
+     "systemInstruction": {
+      "parts": [
+       {
+        "text": "You are Seraphina."
+       }
+      ]
+     },
+     "tools": [
+      {
+       "google_search": {}
+      }
+     ]
+    }
+   }
+  ],
+  "payload": {
+   "error": {
+    "message": "Google AI Studio API returned no candidate"
+   }
+  }
+ },
+ "cohere_json": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.cohere.ai/v2/chat",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-cohere"
+    },
+    "body": {
+     "stream": false,
+     "model": "command-r-plus-08-2024",
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "k": 40,
+     "p": 0.9,
+     "seed": 42,
+     "stop_sequences": [
+      "STOP"
+     ],
+     "frequency_penalty": 0.2,
+     "presence_penalty": 0.1,
+     "documents": [],
+     "tools": [],
+     "safety_mode": "OFF",
+     "response_format": {
+      "type": "json_schema",
+      "schema": {
+       "type": "object"
+      }
+     }
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "deepseek_json": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.deepseek.com/beta/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-deepseek"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Kai: Hello"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?\n\nJSON schema for the response:\n{\n    \"type\": \"object\"\n}"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "stop": [
+      "STOP"
+     ],
+     "seed": 42,
+     "thinking": {
+      "type": "disabled"
+     },
+     "top_logprobs": 3,
+     "logprobs": true,
+     "response_format": {
+      "type": "json_object"
+     }
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "xai_json": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.x.ai/v1/chat/completions",
+    "headers": {
+     "Content-Type": "application/json",
+     "Authorization": "Bearer sk-xai"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "system",
+       "content": "You are Seraphina."
+      },
+      {
+       "role": "user",
+       "content": "Hello",
+       "name": "Kai"
+      },
+      {
+       "role": "assistant",
+       "content": "Hi!"
+      },
+      {
+       "role": "user",
+       "content": "How are you?"
+      }
+     ],
+     "model": "test-model",
+     "temperature": 0.8,
+     "max_tokens": 500,
+     "stream": false,
+     "presence_penalty": 0.1,
+     "frequency_penalty": 0.2,
+     "top_p": 0.9,
+     "seed": 42,
+     "top_logprobs": 3,
+     "logprobs": true,
+     "stop": [
+      "STOP"
+     ],
+     "reasoning_effort": "high",
+     "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+       "name": "out",
+       "strict": true,
+       "schema": {
+        "type": "object"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "payload": {}
+ },
+ "claude_json": {
+  "status": 200,
+  "calls": [
+   {
+    "url": "https://api.anthropic.com/v1/messages",
+    "headers": {
+     "Content-Type": "application/json",
+     "anthropic-version": "2023-06-01",
+     "x-api-key": "sk-claude",
+     "anthropic-beta": "output-128k-2025-02-19,context-1m-2025-08-07"
+    },
+    "body": {
+     "messages": [
+      {
+       "role": "user",
+       "content": [
+        {
+         "type": "text",
+         "text": "You are Seraphina."
+        },
+        {
+         "type": "text",
+         "text": "Kai: Hello"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "content": [
+        {
+         "type": "text",
+         "text": "Hi!"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "content": [
+        {
+         "type": "text",
+         "text": "How are you?"
+        }
+       ]
+      }
+     ],
+     "model": "claude-sonnet-4-5",
+     "max_tokens": 1524,
+     "stop_sequences": [
+      "STOP"
+     ],
+     "stream": false,
+     "tools": [
+      {
+       "name": "out",
+       "description": "d",
+       "input_schema": {
+        "type": "object"
+       }
+      }
+     ],
+     "tool_choice": {
+      "type": "tool",
+      "name": "out"
+     },
+     "thinking": {
+      "type": "enabled",
+      "budget_tokens": 1024
+     }
+    }
+   }
+  ],
+  "payload": {
+   "choices": [
+    {
+     "message": {
+      "content": ""
+     }
+    }
+   ]
+  }
+ }
+}

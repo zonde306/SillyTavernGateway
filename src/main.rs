@@ -53,11 +53,9 @@ async fn main() {
         .unwrap_or_else(|e| panic!("invalid listen_addr {}: {e}", cfg.listen_addr()));
 
     let state = Arc::new(AppState {
-        generate_limiter: std::sync::Arc::new(
-            st_gateway::chat_completions::GenerateLimiter::new(
-                cfg.gateway.batch_bytes.unwrap_or(256 * 1024 * 1024),
-            ),
-        ),
+        generate_limiter: std::sync::Arc::new(st_gateway::chat_completions::GenerateLimiter::new(
+            cfg.gateway.batch_bytes.unwrap_or(256 * 1024 * 1024),
+        )),
         thumb_limiter: std::sync::Arc::new(st_gateway::thumbnails::ThumbLimiter::new(
             cfg.thumb_concurrency(),
         )),

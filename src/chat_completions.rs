@@ -110,16 +110,9 @@ fn map_nanogpt_effort(effort: &str) -> &str {
     }
 }
 
-/// `GEMINI_SAFETY` from src/constants.js.
-fn gemini_safety() -> Value {
-    json!([
-        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "BLOCK_NONE" }
-    ])
-}
+/// `GEMINI_SAFETY` from src/constants.js — one definition, shared with the
+/// bespoke Gemini builder so the two paths cannot drift.
+use crate::providers::gemini_safety;
 
 /// TEXT_COMPLETION_MODELS membership (exact match, like `Array.includes`).
 const TEXT_COMPLETION_MODELS: &[&str] = &[
@@ -156,8 +149,14 @@ pub fn normalize_url(raw: &str) -> String {
 // Request-side helpers
 // ---------------------------------------------------------------------------
 
-/// Providers handled by the inline chain below. Everything else is forwarded
-/// to Node (the `send*Request` family).
+/// Providers the gateway handles itself: the OpenAI-compatible family through
+/// the inline chain below, and the bespoke ones (Claude, Gemini/Vertex, AI21,
+/// Mistral, Cohere, DeepSeek, AI/ML API, xAI, Chutes, MiniMax, Electron Hub,
+/// Azure) through `crate::providers`.
+///
+/// This is every value of upstream's `CHAT_COMPLETION_SOURCES`, so a generation
+/// request never reaches Node. An unknown source is still forwarded, purely as
+/// a safety net for a provider added upstream but not yet ported here.
 pub fn is_inline_source(source: &str) -> bool {
     matches!(
         source,
@@ -174,6 +173,20 @@ pub fn is_inline_source(source: &str) -> bool {
             | "zai"
             | "siliconflow"
             | "workers_ai"
+            // Bespoke request/response shapes, built in `providers`.
+            | "claude"
+            | "ai21"
+            | "makersuite"
+            | "vertexai"
+            | "mistralai"
+            | "cohere"
+            | "deepseek"
+            | "aimlapi"
+            | "xai"
+            | "chutes"
+            | "minimax"
+            | "electronhub"
+            | "azure_openai"
     )
 }
 
@@ -320,13 +333,21 @@ pub struct PreparedRequest {
     pub headers: Vec<(String, String)>,
     pub body: Value,
     pub stream: bool,
+    /// How to rewrite a non-streaming JSON response. Streaming is always a
+    /// raw byte pipe, so this only matters when `stream` is false.
+    pub transform: crate::providers::ResponseTransform,
 }
 
 /// Why a request cannot proceed. `BadRequest` maps to `400 {error:true}`,
 /// `Error` maps to the 502 `{error:{message}}` shape.
 #[derive(Debug)]
 pub enum PrepareError {
+    /// Upstream answers `400 {error:true}`.
     BadRequest(&'static str),
+    /// Upstream answers `400 {error:{message}}` — used by Vertex AI auth
+    /// failures and the Azure configuration check.
+    Message(String),
+    /// Upstream answers `502 {error:{message}}`.
     Error(String),
 }
 
@@ -374,6 +395,30 @@ pub fn prepare(
     let secrets_doc = secrets::read_secrets_doc(user_root);
     let secret_id = get_str(body, "secret_id");
     let read_secret = |key: &str| secrets::read_secret(&secrets_doc, key, secret_id);
+
+    // --- providers with their own wire format --------------------------------
+    // These return a complete request (different URL shape, different body,
+    // sometimes a response that needs translating), so they bypass the inline
+    // OpenAI chain below entirely.
+    if !source.is_empty() {
+        let build = build_provider_request(
+            &source,
+            body,
+            &secrets_doc,
+            cfg,
+            user_root,
+            cookie_secret_path,
+        );
+        if let Some(result) = build {
+            return result.map(|provider| PreparedRequest {
+                url: provider.prepared.url,
+                headers: provider.prepared.headers,
+                body: provider.prepared.body,
+                stream: provider.prepared.stream,
+                transform: provider.transform,
+            });
+        }
+    }
 
     let mut headers: Vec<(String, String)> = Vec::new();
     let api_url: String;
@@ -1012,7 +1057,85 @@ pub fn prepare(
         headers: final_headers,
         body: Value::Object(request_body),
         stream,
+        transform: crate::providers::ResponseTransform::None,
     })
+}
+
+/// Decide whether `source` needs the bespoke-provider builders, and run them.
+///
+/// Returns `None` for the sources the inline OpenAI chain handles, so the
+/// caller falls through to it. `Some(Err(..))` aborts the request.
+fn build_provider_request(
+    source: &str,
+    body: &Value,
+    secrets_doc: &Value,
+    cfg: &crate::config::StConfig,
+    user_root: &std::path::Path,
+    cookie_secret_path: &std::path::Path,
+) -> Option<Result<crate::providers::ProviderRequest, PrepareError>> {
+    let _ = (user_root, cookie_secret_path);
+    let names = prompt::PromptNames::from_body(body);
+    let placeholder = prompt_placeholder(cfg);
+
+    let result = match source {
+        "claude" => crate::providers::build_claude(body, secrets_doc, cfg, &names, &placeholder),
+        "ai21" => crate::providers::build_ai21(body, secrets_doc, &names, &placeholder),
+        "cohere" => crate::providers::build_cohere(body, secrets_doc, &names, &placeholder),
+        "makersuite" | "vertexai" => {
+            // Vertex Full mode signs a JWT and exchanges it for an access
+            // token, which is network I/O — run it on the current runtime.
+            let vertex = source == "vertexai";
+            let body = body.clone();
+            let secrets_doc = secrets_doc.clone();
+            let cfg = cfg.clone();
+            let names = names.clone();
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(move || {
+                        let runtime = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build();
+                        match runtime {
+                            Ok(runtime) => runtime.block_on(crate::providers::build_gemini(
+                                &body,
+                                &secrets_doc,
+                                &cfg,
+                                &names,
+                                vertex,
+                            )),
+                            Err(e) => Err(PrepareError::Error(format!(
+                                "could not start the Vertex AI token exchange: {e}"
+                            ))),
+                        }
+                    })
+                    .join()
+                    .unwrap_or_else(|_| {
+                        Err(PrepareError::Error(
+                            "Vertex AI authentication panicked".to_string(),
+                        ))
+                    })
+            })
+        }
+        other => {
+            let flavour = crate::providers::OpenAiFlavour::parse(other)?;
+            crate::providers::build_openai_flavour(
+                flavour,
+                body,
+                secrets_doc,
+                cfg,
+                &names,
+                &placeholder,
+            )
+        }
+    };
+    Some(result)
+}
+
+/// `getConfigValue('promptPlaceholder', "Let's get started.")`.
+pub fn prompt_placeholder(cfg: &crate::config::StConfig) -> String {
+    config_str(cfg, "promptPlaceholder")
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| crate::converters::PROMPT_PLACEHOLDER.to_string())
 }
 
 fn json_schema_of(body: &Value) -> Option<&Map<String, Value>> {
@@ -1055,13 +1178,13 @@ fn env_override(key: &str) -> Option<String> {
     std::env::var(env_key).ok()
 }
 
-fn config_raw(cfg: &crate::config::StConfig, key: &str) -> Option<serde_yaml::Value> {
+pub fn config_raw(cfg: &crate::config::StConfig, key: &str) -> Option<serde_yaml::Value> {
     let (section, item) = key.split_once('.')?;
     let section = cfg.raw_section(section)?;
     section.get(item).cloned()
 }
 
-fn config_bool(cfg: &crate::config::StConfig, key: &str, default: bool) -> bool {
+pub fn config_bool(cfg: &crate::config::StConfig, key: &str, default: bool) -> bool {
     if let Some(raw) = env_override(key) {
         return parse_bool_text(&raw);
     }
@@ -1080,7 +1203,7 @@ fn parse_bool_text(text: &str) -> bool {
     }
 }
 
-fn config_i64(cfg: &crate::config::StConfig, key: &str, default: i64) -> i64 {
+pub fn config_i64(cfg: &crate::config::StConfig, key: &str, default: i64) -> i64 {
     if let Some(raw) = env_override(key) {
         return raw.trim().parse().unwrap_or(default);
     }
@@ -1091,7 +1214,7 @@ fn config_i64(cfg: &crate::config::StConfig, key: &str, default: i64) -> i64 {
     }
 }
 
-fn config_str(cfg: &crate::config::StConfig, key: &str) -> Option<String> {
+pub fn config_str(cfg: &crate::config::StConfig, key: &str) -> Option<String> {
     if let Some(raw) = env_override(key) {
         return Some(raw);
     }
@@ -1101,6 +1224,42 @@ fn config_str(cfg: &crate::config::StConfig, key: &str) -> Option<String> {
             .ok()
             .map(|s| s.trim().to_string()),
     }
+}
+
+/// Claude prompt-caching TTL from `claude.extendedTTL` (`'1h'` vs `'5m'`).
+pub fn claude_cache_ttl(cfg: &crate::config::StConfig) -> Option<String> {
+    Some(
+        if config_bool(cfg, "claude.extendedTTL", false) {
+            "1h"
+        } else {
+            "5m"
+        }
+        .to_string(),
+    )
+}
+
+/// `cachingAtDepth`: `-1` unless the config holds a non-negative integer.
+pub fn claude_caching_at_depth(cfg: &crate::config::StConfig) -> i64 {
+    let value = config_i64(cfg, "claude.cachingAtDepth", -1);
+    if value >= 0 {
+        value
+    } else {
+        -1
+    }
+}
+
+/// `OPENAI_REASONING_EFFORT_MODELS.includes(model)` — exact membership.
+pub fn is_reasoning_effort_model(model: &str) -> bool {
+    OPENAI_REASONING_EFFORT_MODELS.contains(&model)
+}
+
+/// `OPENAI_FIXED_REASONING_EFFORT[model] ?? OPENAI_REASONING_EFFORT_MAP[effort] ?? effort`
+pub fn resolve_openai_effort(model: &str, body: &Value) -> Option<String> {
+    if let Some(fixed) = fixed_openai_effort(model) {
+        return Some(fixed.to_string());
+    }
+    let effort = get_str(body, "reasoning_effort").filter(|s| !s.is_empty())?;
+    Some(map_openai_effort(effort).to_string())
 }
 
 // --- small utilities --------------------------------------------------------

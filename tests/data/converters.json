@@ -1,0 +1,1823 @@
+{
+ "claude": {
+  "sysprompt_tools": {
+   "messages": [
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Second question"
+      },
+      {
+       "type": "text",
+       "text": "Same-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "tool_use",
+       "id": "call_1",
+       "name": "get_weather",
+       "input": {
+        "city": "Paris"
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "tool_result",
+       "tool_use_id": "call_1",
+       "content": "{\"temp\":21}"
+      },
+      {
+       "type": "text",
+       "text": "What about images?"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "​"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/jpeg",
+        "data": "REVG"
+       }
+      }
+     ]
+    }
+   ],
+   "systemPrompt": [
+    {
+     "type": "text",
+     "text": "You are Seraphina."
+    },
+    {
+     "type": "text",
+     "text": "Kai: Hello there"
+    },
+    {
+     "type": "text",
+     "text": "Seraphina: Hi Kai!"
+    },
+    {
+     "type": "text",
+     "text": "Luna said something"
+    }
+   ]
+  },
+  "sysprompt_notools": {
+   "messages": [
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Second question"
+      },
+      {
+       "type": "text",
+       "text": "Same-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"city\":\"Paris\"}"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "{\"temp\":21}"
+      },
+      {
+       "type": "text",
+       "text": "What about images?"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "​"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/jpeg",
+        "data": "REVG"
+       }
+      }
+     ]
+    }
+   ],
+   "systemPrompt": [
+    {
+     "type": "text",
+     "text": "You are Seraphina."
+    },
+    {
+     "type": "text",
+     "text": "Kai: Hello there"
+    },
+    {
+     "type": "text",
+     "text": "Seraphina: Hi Kai!"
+    },
+    {
+     "type": "text",
+     "text": "Luna said something"
+    }
+   ]
+  },
+  "nosysprompt": {
+   "messages": [
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "You are Seraphina."
+      },
+      {
+       "type": "text",
+       "text": "Kai: Hello there"
+      },
+      {
+       "type": "text",
+       "text": "Seraphina: Hi Kai!"
+      },
+      {
+       "type": "text",
+       "text": "Luna said something"
+      },
+      {
+       "type": "text",
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Second question"
+      },
+      {
+       "type": "text",
+       "text": "Same-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "tool_use",
+       "id": "call_1",
+       "name": "get_weather",
+       "input": {
+        "city": "Paris"
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "tool_result",
+       "tool_use_id": "call_1",
+       "content": "{\"temp\":21}"
+      },
+      {
+       "type": "text",
+       "text": "What about images?"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "​"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/jpeg",
+        "data": "REVG"
+       }
+      }
+     ]
+    }
+   ],
+   "systemPrompt": []
+  },
+  "prefill": {
+   "messages": [
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "Second question"
+      },
+      {
+       "type": "text",
+       "text": "Same-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "tool_use",
+       "id": "call_1",
+       "name": "get_weather",
+       "input": {
+        "city": "Paris"
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "tool_result",
+       "tool_use_id": "call_1",
+       "content": "{\"temp\":21}"
+      },
+      {
+       "type": "text",
+       "text": "What about images?"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "​"
+      },
+      {
+       "type": "image",
+       "source": {
+        "type": "base64",
+        "media_type": "image/jpeg",
+        "data": "REVG"
+       }
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "Sure, here is"
+      }
+     ]
+    }
+   ],
+   "systemPrompt": [
+    {
+     "type": "text",
+     "text": "You are Seraphina."
+    },
+    {
+     "type": "text",
+     "text": "Kai: Hello there"
+    },
+    {
+     "type": "text",
+     "text": "Seraphina: Hi Kai!"
+    },
+    {
+     "type": "text",
+     "text": "Luna said something"
+    }
+   ]
+  },
+  "empty": {
+   "messages": [
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "[Start a new chat]"
+      }
+     ]
+    }
+   ],
+   "systemPrompt": []
+  }
+ },
+ "ai21": {
+  "basic": [
+   {
+    "role": "system",
+    "content": "You are Seraphina.\n\nKai: Hello there\n\nSeraphina: Hi Kai!\n\nLuna said something"
+   },
+   {
+    "role": "user",
+    "content": "Kai: First question"
+   },
+   {
+    "role": "assistant",
+    "content": [
+     {
+      "type": "text",
+      "text": "First answer"
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "content": "Second question\n\nSame-role follow-up"
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "call_1",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\":\"Paris\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "call_1",
+    "content": "{\"temp\":21}"
+   },
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": "What about images?"
+     },
+     {
+      "type": "image_url",
+      "image_url": {
+       "url": "data:image/png;base64,QUJD",
+       "detail": "low"
+      }
+     }
+    ]
+   },
+   {
+    "role": "assistant",
+    "content": [
+     {
+      "type": "image_url",
+      "image_url": {
+       "url": "data:image/jpeg;base64,REVG"
+      }
+     },
+     {
+      "type": "text",
+      "text": "look at this"
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": ""
+     }
+    ]
+   }
+  ],
+  "empty": [
+   {
+    "role": "user",
+    "content": "[Start a new chat]"
+   }
+  ]
+ },
+ "cohere": {
+  "basic": {
+   "chatHistory": [
+    {
+     "role": "system",
+     "content": "You are Seraphina."
+    },
+    {
+     "role": "system",
+     "content": "Kai: Hello there"
+    },
+    {
+     "role": "system",
+     "content": "Seraphina: Hi Kai!"
+    },
+    {
+     "role": "system",
+     "content": "Luna said something"
+    },
+    {
+     "role": "user",
+     "content": "Kai: First question"
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "text",
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": "Second question"
+    },
+    {
+     "role": "user",
+     "content": "Same-role follow-up"
+    },
+    {
+     "role": "assistant",
+     "content": "I'm going to call a tool for that: get_weather",
+     "tool_calls": [
+      {
+       "id": "call_1",
+       "function": {
+        "name": "get_weather",
+        "arguments": "{\"city\":\"Paris\"}"
+       }
+      }
+     ]
+    },
+    {
+     "role": "tool",
+     "tool_call_id": "call_1",
+     "content": "{\"temp\":21}"
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": "What about images?"
+      },
+      {
+       "type": "image_url",
+       "image_url": {
+        "url": "data:image/png;base64,QUJD",
+        "detail": "low"
+       }
+      }
+     ]
+    },
+    {
+     "role": "assistant",
+     "content": [
+      {
+       "type": "image_url",
+       "image_url": {
+        "url": "data:image/jpeg;base64,REVG"
+       }
+      },
+      {
+       "type": "text",
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "content": [
+      {
+       "type": "text",
+       "text": ""
+      }
+     ]
+    }
+   ]
+  },
+  "empty": {
+   "chatHistory": [
+    {
+     "role": "user",
+     "content": "[Start a new chat]"
+    }
+   ]
+  }
+ },
+ "xai": {
+  "basic": [
+   {
+    "role": "system",
+    "content": "You are Seraphina."
+   },
+   {
+    "role": "system",
+    "content": "Kai: Hello there"
+   },
+   {
+    "role": "system",
+    "content": "Seraphina: Hi Kai!"
+   },
+   {
+    "role": "system",
+    "content": "Luna said something"
+   },
+   {
+    "role": "user",
+    "content": "First question",
+    "name": "Kai"
+   },
+   {
+    "role": "assistant",
+    "content": [
+     {
+      "type": "text",
+      "text": "First answer"
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "content": "Second question"
+   },
+   {
+    "role": "user",
+    "content": "Same-role follow-up"
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "call_1",
+      "function": {
+       "name": "get_weather",
+       "arguments": "{\"city\":\"Paris\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "call_1",
+    "content": "{\"temp\":21}"
+   },
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": "What about images?"
+     },
+     {
+      "type": "image_url",
+      "image_url": {
+       "url": "data:image/png;base64,QUJD",
+       "detail": "low"
+      }
+     }
+    ]
+   },
+   {
+    "role": "assistant",
+    "content": [
+     {
+      "type": "image_url",
+      "image_url": {
+       "url": "data:image/jpeg;base64,REVG"
+      }
+     },
+     {
+      "type": "text",
+      "text": "look at this"
+     }
+    ]
+   },
+   {
+    "role": "user",
+    "content": [
+     {
+      "type": "text",
+      "text": ""
+     }
+    ]
+   }
+  ]
+ },
+ "google_mistral-large-latest": {
+  "sysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": [
+     {
+      "text": "You are Seraphina."
+     },
+     {
+      "text": "Kai: Hello there"
+     },
+     {
+      "text": "Seraphina: Hi Kai!"
+     },
+     {
+      "text": "Luna said something"
+     }
+    ]
+   }
+  },
+  "nosysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "main: You are Seraphina.\n\nKai: Hello there\n\nSeraphina: Hi Kai!\n\nLuna said something\n\nKai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": []
+   }
+  },
+  "empty": {
+   "contents": [],
+   "system_instruction": {
+    "parts": []
+   }
+  }
+ },
+ "google_claude-opus-4-5": {
+  "sysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": [
+     {
+      "text": "You are Seraphina."
+     },
+     {
+      "text": "Kai: Hello there"
+     },
+     {
+      "text": "Seraphina: Hi Kai!"
+     },
+     {
+      "text": "Luna said something"
+     }
+    ]
+   }
+  },
+  "nosysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "main: You are Seraphina.\n\nKai: Hello there\n\nSeraphina: Hi Kai!\n\nLuna said something\n\nKai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": []
+   }
+  },
+  "empty": {
+   "contents": [],
+   "system_instruction": {
+    "parts": []
+   }
+  }
+ },
+ "google_gemini-2.5-flash": {
+  "sysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": [
+     {
+      "text": "You are Seraphina."
+     },
+     {
+      "text": "Kai: Hello there"
+     },
+     {
+      "text": "Seraphina: Hi Kai!"
+     },
+     {
+      "text": "Luna said something"
+     }
+    ]
+   }
+  },
+  "nosysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "main: You are Seraphina.\n\nKai: Hello there\n\nSeraphina: Hi Kai!\n\nLuna said something\n\nKai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": []
+   }
+  },
+  "empty": {
+   "contents": [],
+   "system_instruction": {
+    "parts": []
+   }
+  }
+ },
+ "google_gemini-3-pro": {
+  "sysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Kai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       },
+       "thoughtSignature": "skip_thought_signature_validator"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       },
+       "mediaResolution": {
+        "level": "media_resolution_low"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": [
+     {
+      "text": "You are Seraphina."
+     },
+     {
+      "text": "Kai: Hello there"
+     },
+     {
+      "text": "Seraphina: Hi Kai!"
+     },
+     {
+      "text": "Luna said something"
+     }
+    ]
+   }
+  },
+  "nosysprompt": {
+   "contents": [
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "main: You are Seraphina.\n\nKai: Hello there\n\nSeraphina: Hi Kai!\n\nLuna said something\n\nKai: First question"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "text": "First answer"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": "Second question\n\nSame-role follow-up"
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "functionCall": {
+        "name": "get_weather",
+        "args": {
+         "city": "Paris"
+        }
+       },
+       "thoughtSignature": "skip_thought_signature_validator"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "functionResponse": {
+        "name": "get_weather",
+        "response": {
+         "name": "get_weather",
+         "content": "{\"temp\":21}"
+        }
+       }
+      },
+      {
+       "text": "What about images?"
+      },
+      {
+       "inlineData": {
+        "mimeType": "image/png",
+        "data": "QUJD"
+       },
+       "mediaResolution": {
+        "level": "media_resolution_low"
+       }
+      }
+     ]
+    },
+    {
+     "role": "model",
+     "parts": [
+      {
+       "inlineData": {
+        "mimeType": "image/jpeg",
+        "data": "REVG"
+       }
+      },
+      {
+       "text": "look at this"
+      }
+     ]
+    },
+    {
+     "role": "user",
+     "parts": [
+      {
+       "text": ""
+      }
+     ]
+    }
+   ],
+   "system_instruction": {
+    "parts": []
+   }
+  },
+  "empty": {
+   "contents": [],
+   "system_instruction": {
+    "parts": []
+   }
+  }
+ },
+ "budgets": {
+  "claude": [
+   [
+    "auto",
+    null
+   ],
+   [
+    "min",
+    1024
+   ],
+   [
+    "low",
+    1024
+   ],
+   [
+    "medium",
+    2000
+   ],
+   [
+    "high",
+    4000
+   ],
+   [
+    "max",
+    7600
+   ],
+   [
+    "undefined",
+    1024
+   ]
+  ],
+  "claude_nonstream": [
+   [
+    "low",
+    10000
+   ],
+   [
+    "max",
+    21333
+   ]
+  ],
+  "claude_adaptive": [
+   [
+    "auto",
+    null
+   ],
+   [
+    "min",
+    "low"
+   ],
+   [
+    "low",
+    "low"
+   ],
+   [
+    "medium",
+    "medium"
+   ],
+   [
+    "high",
+    "high"
+   ],
+   [
+    "max",
+    "max"
+   ]
+  ],
+  "google": [
+   [
+    "gemini-2.5-flash",
+    [
+     [
+      "auto",
+      -1
+     ],
+     [
+      "min",
+      0
+     ],
+     [
+      "low",
+      800
+     ],
+     [
+      "medium",
+      2000
+     ],
+     [
+      "high",
+      4000
+     ],
+     [
+      "max",
+      8000
+     ]
+    ]
+   ],
+   [
+    "gemini-2.5-pro",
+    [
+     [
+      "auto",
+      -1
+     ],
+     [
+      "min",
+      128
+     ],
+     [
+      "low",
+      800
+     ],
+     [
+      "medium",
+      2000
+     ],
+     [
+      "high",
+      4000
+     ],
+     [
+      "max",
+      8000
+     ]
+    ]
+   ],
+   [
+    "gemini-2.5-flash-lite",
+    [
+     [
+      "auto",
+      -1
+     ],
+     [
+      "min",
+      0
+     ],
+     [
+      "low",
+      800
+     ],
+     [
+      "medium",
+      2000
+     ],
+     [
+      "high",
+      4000
+     ],
+     [
+      "max",
+      8000
+     ]
+    ]
+   ],
+   [
+    "gemini-3-pro-preview",
+    [
+     [
+      "auto",
+      null
+     ],
+     [
+      "min",
+      "low"
+     ],
+     [
+      "low",
+      "low"
+     ],
+     [
+      "medium",
+      "low"
+     ],
+     [
+      "high",
+      "high"
+     ],
+     [
+      "max",
+      "high"
+     ]
+    ]
+   ],
+   [
+    "gemini-3.7-flash",
+    [
+     [
+      "auto",
+      null
+     ],
+     [
+      "min",
+      "low"
+     ],
+     [
+      "low",
+      "low"
+     ],
+     [
+      "medium",
+      "medium"
+     ],
+     [
+      "high",
+      "high"
+     ],
+     [
+      "max",
+      "high"
+     ]
+    ]
+   ],
+   [
+    "gemini-2.0-flash",
+    [
+     [
+      "auto",
+      -1
+     ],
+     [
+      "min",
+      0
+     ],
+     [
+      "low",
+      800
+     ],
+     [
+      "medium",
+      2000
+     ],
+     [
+      "high",
+      4000
+     ],
+     [
+      "max",
+      8000
+     ]
+    ]
+   ]
+  ]
+ }
+}

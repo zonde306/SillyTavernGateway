@@ -20,10 +20,18 @@ fn reads_real_node_produced_cache_entry() {
     let mut found = false;
     for entry in entries.flatten() {
         let path = entry.path();
-        let Ok(raw) = std::fs::read_to_string(&path) else { continue };
-        let Ok(datum) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
-        let Some(key) = datum.get("key").and_then(|k| k.as_str()) else { continue };
-        let Some(value) = datum.get("value").and_then(|v| v.as_str()) else { continue };
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(datum) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        let Some(key) = datum.get("key").and_then(|k| k.as_str()) else {
+            continue;
+        };
+        let Some(value) = datum.get("value").and_then(|v| v.as_str()) else {
+            continue;
+        };
 
         // 1. Rust hash of the key must land on the same file Node wrote
         assert_eq!(
@@ -39,8 +47,7 @@ fn reads_real_node_produced_cache_entry() {
 
         // 3. The value must be parseable card JSON (Rust can rebuild /all
         //    responses from it without touching the PNG)
-        serde_json::from_str::<serde_json::Value>(&read_back)
-            .expect("cached value is card JSON");
+        serde_json::from_str::<serde_json::Value>(&read_back).expect("cached value is card JSON");
 
         found = true;
         break;

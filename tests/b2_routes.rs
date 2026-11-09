@@ -564,13 +564,9 @@ fn rename_sync_actually_renames_the_card() {
     std::fs::write(deps.chats_dir.join("old name/chat.jsonl"), b"{}\n").unwrap();
     make_card_png(&deps.characters_dir.join("old name.png"), "old name");
 
-    let new_avatar = st_gateway::routes::__test::rename_sync(
-        &deps,
-        dir.path(),
-        "old name.png",
-        "new name",
-    )
-    .expect("rename must succeed");
+    let new_avatar =
+        st_gateway::routes::__test::rename_sync(&deps, dir.path(), "old name.png", "new name")
+            .expect("rename must succeed");
 
     assert_eq!(new_avatar, "new name.png");
     assert!(!deps.characters_dir.join("old name.png").exists());
@@ -629,7 +625,13 @@ fn concurrent_edits_never_corrupt_the_card() {
     let chunks = st_gateway::png::read_text_chunks(&path).unwrap();
     let raw = st_gateway::png::extract_card_json(&chunks).unwrap();
     let card: serde_json::Value = serde_json::from_str(&raw).unwrap();
-    assert_eq!(card["data"]["alternate_greetings"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        card["data"]["alternate_greetings"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
     let leftovers: Vec<String> = std::fs::read_dir(&deps.characters_dir)
         .unwrap()
         .flatten()

@@ -80,7 +80,7 @@ impl PromptNames {
     }
 
     /// `startsWithGroupName(message)`: any `"<name>: "` prefix.
-    fn starts_with_group_name(&self, message: &str) -> bool {
+    pub fn starts_with_group_name(&self, message: &str) -> bool {
         self.group_names
             .iter()
             .any(|n| message.starts_with(&format!("{n}: ")))
