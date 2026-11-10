@@ -26,7 +26,7 @@ fn requires_csrf(method: &axum::http::Method) -> bool {
 }
 
 /// Extract auth from request parts; on failure produce the error response.
-fn check_auth(
+pub(crate) fn check_auth(
     state: &AppState,
     parts: &axum::http::request::Parts,
 ) -> Result<crate::auth::AuthContext, Response> {
@@ -70,7 +70,7 @@ fn generate_user_handle(auth: &crate::auth::AuthContext) -> String {
     "default-user".to_string()
 }
 
-fn json_error(status: StatusCode, message: &str) -> Response {
+pub(crate) fn json_error(status: StatusCode, message: &str) -> Response {
     Response::builder()
         .status(status)
         .header(axum::http::header::CONTENT_TYPE, "application/json")
@@ -511,6 +511,9 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
         .route("/api/characters/create", post(characters_create))
         .route("/api/characters/edit-avatar", post(characters_edit_avatar))
         .route("/api/characters/import", post(characters_import))
+        .route("/api/avatars/get", post(crate::avatars::avatars_get))
+        .route("/api/avatars/delete", post(crate::avatars::avatars_delete))
+        .route("/api/avatars/upload", post(crate::avatars::avatars_upload))
         .route(
             "/api/backends/chat-completions/generate",
             post(chat_completions_generate),
@@ -528,7 +531,7 @@ async fn csrf_token_forward(State(state): State<Arc<AppState>>, req: Request<Bod
     forward::proxy(state, req).await
 }
 
-fn user_dirs(state: &AppState, handle: &str) -> card::CardDeps {
+pub(crate) fn user_dirs(state: &AppState, handle: &str) -> card::CardDeps {
     let user = state.cfg.user_dir(handle);
     card::CardDeps {
         characters_dir: user.join("characters"),
@@ -1368,7 +1371,10 @@ pub struct MultipartUpload {
 /// Decode a multipart/form-data body. Mirrors multer + multerMonkeyPatch
 /// (file field named 'avatar'; latin1 filename decode applied by callers if
 /// needed for naming).
-async fn parse_multipart(content_type: &str, body: Body) -> Result<MultipartUpload, String> {
+pub(crate) async fn parse_multipart(
+    content_type: &str,
+    body: Body,
+) -> Result<MultipartUpload, String> {
     let stream = body.into_data_stream();
     let boundary =
         multer::parse_boundary(content_type).map_err(|e| format!("multipart boundary: {e}"))?;
@@ -1584,7 +1590,7 @@ fn parse_crop_query(query: Option<&str>) -> Option<avatar::Crop> {
 }
 
 /// Extract a `crop` query value from a raw query string.
-fn crop_from_query(query: Option<&str>) -> Option<avatar::Crop> {
+pub(crate) fn crop_from_query(query: Option<&str>) -> Option<avatar::Crop> {
     query
         .and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("crop=")))
         .and_then(|v| parse_crop_query(Some(v)))
@@ -2643,6 +2649,9 @@ mod tests {
             thumb_limiter: std::sync::Arc::new(crate::thumbnails::ThumbLimiter::new(
                 cfg.thumb_concurrency(),
             )),
+            avatar_limiter: std::sync::Arc::new(crate::avatars::AvatarLimiter::new(
+                256 * 1024 * 1024,
+            )),
             disk_cache: crate::disk_cache::DiskCache::new(&cfg.data_root),
             cfg: Arc::new(cfg),
             node: forward::NodeClient::new(),
@@ -2940,6 +2949,20 @@ pub mod __test {
         data_root: &std::path::Path,
     ) -> Result<(), String> {
         super::edit_full_sync(form, avatar_url, upload, crop, deps, data_root)
+    }
+
+    pub fn upload_avatar_sync(
+        dir: &std::path::Path,
+        user_dir: &std::path::Path,
+        raw: &[u8],
+        crop: Option<crate::avatar::Crop>,
+        overwrite_name: &str,
+    ) -> Result<String, String> {
+        crate::avatars::upload_sync_for_tests(dir, user_dir, raw, crop, overwrite_name)
+    }
+
+    pub fn list_persona_avatars(dir: &std::path::Path) -> Vec<String> {
+        crate::avatars::list_images(dir)
     }
 
     pub fn edit_avatar_sync(

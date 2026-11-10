@@ -59,6 +59,9 @@ async fn main() {
         thumb_limiter: std::sync::Arc::new(st_gateway::thumbnails::ThumbLimiter::new(
             cfg.thumb_concurrency(),
         )),
+        avatar_limiter: std::sync::Arc::new(st_gateway::avatars::AvatarLimiter::new(
+            cfg.gateway.batch_bytes.unwrap_or(256 * 1024 * 1024),
+        )),
         disk_cache: st_gateway::disk_cache::DiskCache::new(&cfg.data_root),
         cfg,
         node: forward::NodeClient::new(),

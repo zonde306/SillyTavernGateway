@@ -19,6 +19,10 @@ serde_json = { version = "1", features = ["preserve_order"] }
 serde_yaml = "0.9"
 libc = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff", "avif"] }
+# AVIF *decoding*. The `image` crate's `avif` feature is encoder-only;
+# `avif-native` needs a system dav1d (pkg-config + nasm), which rules out a
+# static musl build. THIS is pure Rust and decodes real files byte-exactly.
+oxideav-avif = "0.0.17"
 bytes = "1"
 sha1 = "0.10"
 hmac = "0.12"

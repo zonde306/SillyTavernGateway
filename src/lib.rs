@@ -7,6 +7,7 @@
 pub mod atomic;
 pub mod auth;
 pub mod avatar;
+pub mod avatars;
 pub mod card;
 pub mod chat_completions;
 pub mod config;
@@ -35,4 +36,8 @@ pub struct AppState {
     /// (permits derived from gateway.batch_bytes; image-heavy payloads cost
     /// more permits).
     pub generate_limiter: std::sync::Arc<chat_completions::GenerateLimiter>,
+    /// Concurrency gate for image decoding on avatar/persona uploads.
+    /// Same derivation as `thumb_concurrency`, separate semaphore so a
+    /// thumbnail storm cannot stall an interactive upload.
+    pub avatar_limiter: std::sync::Arc<avatars::AvatarLimiter>,
 }

@@ -1307,6 +1307,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 
 [[package]]
+name = "oxideav-av1"
+version = "0.1.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dec67272ed34e5108b1c403a1d34ad80b228edec0604fb0f8d0e5d5b561591d"
+dependencies = [
+ "oxideav-core",
+]
+
+[[package]]
+name = "oxideav-avif"
+version = "0.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b9db1d4cb1aab18d98a72bc3061cf7923c88eecf0fdbbff7f46f542c7fe2b9"
+dependencies = [
+ "oxideav-av1",
+ "oxideav-core",
+ "oxideav-heif",
+]
+
+[[package]]
+name = "oxideav-core"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce90bfbe978dfc46d0c98d137b7c4566ac8eaae8c9209585eb53a8aedb0ef53c"
+dependencies = [
+ "bytemuck",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "oxideav-heif"
+version = "0.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "010a5d104113634fe26aa5db6dc487ed445da52d640bb0a25c0cf6a266488104"
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1999,6 +2036,7 @@ dependencies = [
  "image",
  "libc",
  "multer",
+ "oxideav-avif",
  "percent-encoding",
  "rsa",
  "serde",

@@ -19,6 +19,7 @@ fn test_app_state(dir: &tempfile::TempDir, dims: Option<Vec<u32>>) -> Arc<AppSta
     Arc::new(AppState {
         generate_limiter: Arc::new(st_gateway::chat_completions::GenerateLimiter::default()),
         thumb_limiter: Arc::new(ThumbLimiter::new(cfg.thumb_concurrency())),
+        avatar_limiter: Arc::new(st_gateway::avatars::AvatarLimiter::new(256 * 1024 * 1024)),
         disk_cache: st_gateway::disk_cache::DiskCache::new(&cfg.data_root),
         cfg: Arc::new(cfg),
         node: st_gateway::forward::NodeClient::new(),

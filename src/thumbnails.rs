@@ -297,13 +297,7 @@ fn serve_file(path: &Path, parts: &axum::http::request::Parts) -> Response {
     let Ok(bytes) = std::fs::read(path) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let mime = match path.extension().and_then(|e| e.to_str()) {
-        Some(e) if e.eq_ignore_ascii_case("png") => "image/png",
-        Some(e) if e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg") => "image/jpeg",
-        Some(e) if e.eq_ignore_ascii_case("webp") => "image/webp",
-        Some(e) if e.eq_ignore_ascii_case("gif") => "image/gif",
-        _ => "application/octet-stream",
-    };
+    let mime = mime_for(path, &bytes);
     let is_firefox = parts
         .headers
         .get(header::USER_AGENT)
@@ -318,6 +312,74 @@ fn serve_file(path: &Path, parts: &axum::http::request::Parts) -> Response {
         builder = builder.header(header::CACHE_CONTROL, "must-understand, no-store");
     }
     builder.body(Body::from(bytes)).unwrap()
+}
+
+/// Content-Type for a served image.
+///
+/// The bytes win over the extension. `/api/avatars/upload` re-encodes every
+/// upload to PNG but keeps the caller-supplied filename, so
+/// `<name>.avif` holding PNG bytes is a normal outcome (upstream does the same).
+/// Trusting the extension there would advertise `image/avif` for PNG data.
+///
+/// The extension is authoritative for the formats upstream's `express.static`
+/// already mapped (png/jpeg/webp/gif): a `.png` thumbnail that happens to hold
+/// JPEG bytes must stay `image/png` exactly as `sendFile` would do, and an
+/// existing test pins that. Content sniffing only fills the gaps upstream
+/// leaves at `application/octet-stream` (avif/heic/heif/jxl and the
+/// extension-less originals).
+fn mime_for(path: &Path, bytes: &[u8]) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match ext.as_str() {
+        "png" => return "image/png",
+        "jpg" | "jpeg" | "jpe" => return "image/jpeg",
+        "webp" => return "image/webp",
+        "gif" => return "image/gif",
+        "svg" | "svgz" => return "image/svg+xml",
+        "ico" => return "image/x-icon",
+        "apng" => return "image/apng",
+        "bmp" => return "image/bmp",
+        "tif" | "tiff" => return "image/tiff",
+        _ => {}
+    }
+
+    // Formats the extension cannot be trusted for, plus extensionless files:
+    // look at the bytes.
+    const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    const JPEG: &[u8] = &[0xFF, 0xD8, 0xFF];
+    if bytes.starts_with(PNG) {
+        return "image/png";
+    }
+    if bytes.starts_with(JPEG) {
+        return "image/jpeg";
+    }
+    if bytes.starts_with(b"RIFF") && bytes.len() >= 12 && &bytes[8..12] == b"WEBP" {
+        return "image/webp";
+    }
+    if bytes.starts_with(b"GIF8") {
+        return "image/gif";
+    }
+    // ISO-BMFF `ftyp` brands: avif / avis / heic / heif.
+    if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
+        match &bytes[8..12] {
+            b"avif" | b"avis" => return "image/avif",
+            b"heic" | b"heix" | b"heim" | b"heis" | b"hevc" | b"hevx" => return "image/heic",
+            b"mif1" | b"msf1" => return "image/heif",
+            _ => {}
+        }
+    }
+
+    match ext.as_str() {
+        "avif" => "image/avif",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "jxl" => "image/jxl",
+        _ => "application/octet-stream",
+    }
 }
 
 /// Mirror of generateThumbnail + processSingleImage. Returns Ok(true) when a
@@ -360,9 +422,11 @@ pub fn generate_thumbnail(
         return Ok(false);
     }
 
-    // Decode (image crate). Preserve semantics: unsupported formats fail →
-    // caller serves original.
-    let img = image::load_from_memory(&raw).map_err(|e| format!("decode failed: {e}"))?;
+    // Decode. AVIF is routed through the same bounded decoder the avatar
+    // upload path uses (`avatar::decode_bounded`): the `image` crate can only
+    // *encode* AVIF in this build, so without the oxideav route an AVIF
+    // persona would fall back to serving the original — no thumbnail at all.
+    let img = crate::avatar::decode_bounded(&raw).map_err(|e| format!("decode failed: {e}"))?;
     let (orig_w, orig_h) = (img.width(), img.height());
     let aspect_ratio = if orig_h > 0 {
         orig_w as f64 / orig_h as f64
@@ -441,4 +505,59 @@ fn cover_resize(img: &image::DynamicImage, target_w: u32, target_h: u32) -> imag
     let x = (scaled.width().saturating_sub(target_w)) / 2;
     let y = (scaled.height().saturating_sub(target_h)) / 2;
     scaled.crop_imm(x, y, target_w, target_h)
+}
+
+#[cfg(test)]
+mod mime_tests {
+    use super::mime_for;
+    use std::path::Path;
+
+    #[test]
+    fn known_extensions_stay_authoritative() {
+        // express.static/sendFile decides by extension, and an existing test
+        // pins that a `.png` thumbnail holding JPEG bytes is served as
+        // image/png. Do not break that contract.
+        let jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0, 0];
+        assert_eq!(mime_for(Path::new("r.png"), &jpeg), "image/png");
+        let png = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0];
+        assert_eq!(mime_for(Path::new("r.jpg"), &png), "image/jpeg");
+    }
+
+    #[test]
+    fn an_upload_that_reencoded_to_png_is_served_as_png() {
+        // /api/avatars/upload re-encodes to PNG but keeps the supplied name, so
+        // "<name>.avif" holding PNG bytes is a real, expected combination.
+        let png = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0];
+        assert_eq!(mime_for(Path::new("persona.avif"), &png), "image/png");
+    }
+
+    #[test]
+    fn real_avif_is_detected_from_the_ftyp_brand() {
+        let mut avif = vec![0, 0, 0, 0x1C];
+        avif.extend_from_slice(b"ftypavif");
+        avif.extend_from_slice(&[0u8; 16]);
+        assert_eq!(mime_for(Path::new("noext"), &avif), "image/avif");
+        assert_eq!(mime_for(Path::new("x.avif"), &avif), "image/avif");
+    }
+
+    #[test]
+    fn heic_and_webp_are_recognised() {
+        let mut heic = vec![0, 0, 0, 0x18];
+        heic.extend_from_slice(b"ftypheic");
+        assert_eq!(mime_for(Path::new("x"), &heic), "image/heic");
+
+        let mut webp = b"RIFF".to_vec();
+        webp.extend_from_slice(&[0, 0, 0, 0]);
+        webp.extend_from_slice(b"WEBPVP8 ");
+        assert_eq!(mime_for(Path::new("x"), &webp), "image/webp");
+    }
+
+    #[test]
+    fn unknown_bytes_fall_back_to_the_extension() {
+        assert_eq!(mime_for(Path::new("a.svg"), b"<svg/>"), "image/svg+xml");
+        assert_eq!(
+            mime_for(Path::new("a.bin"), b"\x01\x02"),
+            "application/octet-stream"
+        );
+    }
 }
